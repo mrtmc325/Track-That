@@ -191,12 +191,14 @@ services:
     build: services/vendor-adapter/
     expose:
       - "3007"
-    user: "1000:1000"
-    read_only: true
+    # Chromium (Puppeteer) needs writable filesystem + shared memory
+    shm_size: '256mb'
     security_opt:
       - no-new-privileges:true
     tmpfs:
-      - /tmp
+      - /tmp:size=128m
+    environment:
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
     env_file: .env
     networks:
       - track-that-net

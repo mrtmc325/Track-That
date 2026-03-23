@@ -9,6 +9,8 @@
  * reliability.timeouts_retries_and_circuit_breakers — per-store timeout, graceful skip on failure
  */
 import { WebScraperAdapter } from '../adapters/web-scraper.js';
+import { PuppeteerScraperAdapter, closeBrowser } from '../adapters/puppeteer-scraper.js';
+import type { VendorAdapter } from '../adapters/adapter.interface.js';
 import { findNearbyStoreConfigs, type StoreScraperConfig } from '../adapters/store-configs.js';
 import { normalizeProduct, type NormalizedProduct } from '../pipeline/normalizer.js';
 import { logger } from '../utils/logger.js';
@@ -49,7 +51,17 @@ export interface CrawlResponse {
   crawl_time_ms: number;
 }
 
-const scraper = new WebScraperAdapter();
+// Adapter instances — reused across crawls
+const cheerioScraper = new WebScraperAdapter();
+const puppeteerScraper = new PuppeteerScraperAdapter();
+
+/**
+ * Select the right adapter based on store config.
+ * JS-rendered sites (Walmart, Target) use Puppeteer; static sites use Cheerio.
+ */
+function getAdapter(requiresJs: boolean): VendorAdapter {
+  return requiresJs ? puppeteerScraper : cheerioScraper;
+}
 
 /**
  * Crawl nearby stores for a product query.
@@ -85,7 +97,13 @@ export async function crawlForProducts(request: CrawlRequest): Promise<CrawlResp
   const crawlPromises = nearbyStores.map(async ({ config, location, distanceMiles }) => {
     const storeId = `${config.domain}-${location.zip}`;
     try {
-      const result = await scraper.extract({
+      // Select adapter: Puppeteer for JS-rendered sites, Cheerio for static HTML
+      const adapter = getAdapter(config.requiresJs);
+      logger.debug('crawl.adapter_selected', `Using ${config.requiresJs ? 'Puppeteer' : 'Cheerio'} for ${config.name}`, {
+        store: config.name, adapter: config.requiresJs ? 'puppeteer' : 'cheerio',
+      });
+
+      const result = await adapter.extract({
         ...config,
         query: request.query,
         storeName: config.name,
@@ -120,11 +138,14 @@ export async function crawlForProducts(request: CrawlRequest): Promise<CrawlResp
     }
   });
 
-  // Wait for all crawls with overall timeout (30s)
+  // Wait for all crawls with overall timeout (30s), then close Puppeteer browser
   await Promise.race([
     Promise.allSettled(crawlPromises),
     new Promise(resolve => setTimeout(resolve, 30000)),
   ]);
+
+  // Close Puppeteer browser after batch to free memory
+  await closeBrowser().catch(() => {});
 
   // 3. Group normalized products by canonical name → merge store listings
   const productMap = new Map<string, CrawlResultProduct>();

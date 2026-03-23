@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-03-23 — Sprint 18: Release, Rollout & Operations (Phase 15) — ALL 15 PHASES COMPLETE
+
+### Added
+- **Operational Runbooks** (docs/RUNBOOKS.md)
+  - 6 runbooks: Service Recovery, Scrape Failure, Payment Outage, Delivery Dispatch Failure, Database Recovery, Cache Failure
+  - Each with trigger, severity, numbered steps, escalation path, resolution verification
+  - Incident severity classification (Sev 0-4) with response times
+  - Canary deployment strategy (5% → 25% → 100%) with health monitoring
+  - 5 auto-rollback triggers with decision flowchart
+  - Environment strategy (Local, CI, Staging, Production)
+  - Container runtime security checklist (10 items)
+
+- **Feature Flags Service** (shared/middleware/src/feature-flags.ts)
+  - 6 flags: enable_delivery_uber, enable_delivery_doordash, search_fuzzy_threshold, coupon_confidence_threshold, max_search_radius_miles, enable_payment
+  - `isEnabled()`, `getNumber()`, `getString()` with type-safe defaults
+  - `setFlag()` with audit logging (actor, old/new value, timestamp)
+  - In-memory store (PostgreSQL + Redis cache in production)
+
+- **Production Docker Compose** (docker-compose.prod.yml)
+  - All 9 services with hardened security:
+    - Non-root user (UID 1000)
+    - Read-only root filesystem
+    - no-new-privileges, cap_drop ALL
+    - tmpfs /tmp with noexec,nosuid
+    - CPU/memory limits per service
+    - Health checks (wget --spider)
+    - restart: unless-stopped
+
+### Tests (13 new, all passing)
+- 13 feature flags tests (isEnabled, getNumber, setFlag, getAllFlags, resetFlags, audit)
+
 ## [1.7.0] - 2026-03-23 — Sprint 17: CI/CD Pipeline (Phase 14)
 
 ### Added

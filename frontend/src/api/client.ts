@@ -30,11 +30,8 @@ const apiClient = axios.create({
 // Request interceptor: attach X-Request-ID and CSRF token.
 // ---------------------------------------------------------------------------
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Unique per-request trace ID so server logs and client can correlate.
   config.headers['X-Request-ID'] = crypto.randomUUID();
 
-  // Double-submit cookie CSRF pattern: mirror the csrf_token cookie value
-  // into the X-CSRF-Token header for mutating requests.
   const csrfToken = getCookie('csrf_token');
   if (csrfToken && config.method && ['post', 'put', 'patch', 'delete'].includes(config.method.toLowerCase())) {
     config.headers['X-CSRF-Token'] = csrfToken;
@@ -44,21 +41,44 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 });
 
 // ---------------------------------------------------------------------------
+// URLs that should NOT trigger a redirect to /login on 401.
+// These are expected to return 401 when the user is not authenticated.
+// ---------------------------------------------------------------------------
+const AUTH_EXEMPT_URLS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/users/me',
+];
+
+// ---------------------------------------------------------------------------
 // Response interceptor: normalise errors into a typed shape.
+// Do NOT blindly redirect on 401 — only redirect for protected API calls
+// that require authentication and the user is clearly not logged in.
 // ---------------------------------------------------------------------------
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiError>) => {
     if (error.response) {
       const { status, data } = error.response;
+      const requestUrl = error.config?.url || '';
 
-      // Surface a friendly error message for common status codes.
       if (status === 401) {
-        // Redirect to login — avoid circular import by using window.location.
-        window.location.href = '/login';
+        // Check if this is an auth-exempt URL (login, register, profile check, etc.)
+        const isAuthExempt = AUTH_EXEMPT_URLS.some(url => requestUrl.includes(url));
+        const isAlreadyOnLogin = window.location.pathname === '/login' || window.location.pathname === '/register';
+
+        // Only redirect to login if:
+        // 1. Not an auth-exempt URL (e.g., not /users/me profile check)
+        // 2. Not already on the login/register page
+        // 3. Not a search or public endpoint
+        if (!isAuthExempt && !isAlreadyOnLogin && !requestUrl.includes('/search') && !requestUrl.includes('/geo/')) {
+          window.location.href = '/login';
+        }
       }
 
-      // Re-throw as a structured error so callers can pattern-match on `code`.
       const structured: ApiError = data ?? {
         error: { code: 'UNKNOWN', message: error.message },
         timestamp: new Date().toISOString(),

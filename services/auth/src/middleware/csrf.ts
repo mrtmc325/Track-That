@@ -26,10 +26,11 @@ const CSRF_HEADER = 'x-csrf-token';
 /** Generate a new CSRF token and set it as a cookie. */
 export function setCsrfToken(res: Response): string {
   const token = crypto.randomBytes(32).toString('hex');
+  const isProduction = process.env.NODE_ENV === 'production';
   res.cookie(CSRF_COOKIE, token, {
     httpOnly: false, // Must be readable by JS to send in header
-    secure: true,
-    sameSite: 'strict',
+    secure: isProduction,
+    sameSite: isProduction ? 'strict' : 'lax',
     path: '/',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
   });

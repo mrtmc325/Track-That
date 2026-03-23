@@ -8,10 +8,12 @@ import { recordFailedAttempt, clearAttempts } from '../middleware/rate-limit.js'
 import { setCsrfToken } from '../middleware/csrf.js';
 import { logger } from '../utils/logger.js';
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: true,
-  sameSite: 'strict' as const,
+  secure: IS_PRODUCTION, // false in dev (HTTP), true in production (HTTPS)
+  sameSite: (IS_PRODUCTION ? 'strict' : 'lax') as const,
   path: '/',
 };
 

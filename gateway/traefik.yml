@@ -18,6 +18,9 @@ providers:
 api:
   dashboard: false
 
+ping:
+  entryPoint: websecure
+
 log:
   level: INFO
   format: json

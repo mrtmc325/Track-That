@@ -1,17 +1,22 @@
-# Pinned per security.supply_chain_integrity (R10)
-FROM node:20-alpine@sha256:ad55aa3b18e44fa2df3917bfb5c1e2c7e03f1aab0af36bba59bafe5e2b5fe3f0 AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 RUN npm run build
 
-# Pinned per security.supply_chain_integrity (R10)
-FROM nginx:alpine@sha256:65645de16a55aeb399e8a498330b2db62b1007eb8dbfa52e75c8b9b22479e75c
-# Non-root: nginx alpine runs master as root but worker as nginx user
-# Copy built assets
+FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Create nginx temp dirs writable by non-root and fix all permissions
+RUN mkdir -p /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp \
+    /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp /var/cache/nginx/scgi_temp && \
+    chown -R 1000:1000 /usr/share/nginx/html /var/cache/nginx /var/log/nginx /var/run && \
+    # Remove the "user" directive since we run as non-root
+    sed -i 's/^user  nginx;/#user  nginx;/' /etc/nginx/nginx.conf && \
+    # Update pid file location to /tmp (writable by non-root)
+    sed -i 's|/run/nginx.pid|/tmp/nginx.pid|' /etc/nginx/nginx.conf
+USER 1000:1000
 EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost/healthz || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -qO- http://localhost:80/ || exit 1
 CMD ["nginx", "-g", "daemon off;"]

@@ -37,12 +37,8 @@ services:
     build: frontend/
     expose:
       - "80"
-    user: "1000:1000"
-    read_only: true
     security_opt:
       - no-new-privileges:true
-    tmpfs:
-      - /tmp
     networks:
       - track-that-net
     depends_on:

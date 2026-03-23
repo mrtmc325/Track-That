@@ -303,7 +303,7 @@ export function updateUser(userId: string, updates: Record<string, unknown>): Om
 
   for (const field of allowedFields) {
     if (field in updates && updates[field] !== undefined) {
-      (user as Record<string, unknown>)[field] = updates[field];
+      (user as unknown as Record<string, unknown>)[field] = updates[field];
     }
   }
   user.updated_at = new Date();

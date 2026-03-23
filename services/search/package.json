@@ -19,6 +19,7 @@
     "@elastic/elasticsearch": "^8.13.1"
   },
   "devDependencies": {
+    "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",

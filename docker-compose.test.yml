@@ -1,0 +1,33 @@
+# Test override — run with: docker compose -f docker-compose.yml -f docker-compose.test.yml up test-runner
+
+services:
+  test-runner:
+    image: node:20-alpine
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:ro
+    command: >
+      sh -c "
+        set -e &&
+        echo '=== auth ===' && cd /workspace/services/auth && npm test &&
+        echo '=== search ===' && cd /workspace/services/search && npm test &&
+        echo '=== price-engine ===' && cd /workspace/services/price-engine && npm test &&
+        echo '=== cart-checkout ===' && cd /workspace/services/cart-checkout && npm test &&
+        echo '=== delivery-broker ===' && cd /workspace/services/delivery-broker && npm test &&
+        echo '=== vendor-adapter ===' && cd /workspace/services/vendor-adapter && npm test &&
+        echo '=== ads-ingestion ===' && cd /workspace/services/ads-ingestion && npm test &&
+        echo '=== geo ===' && cd /workspace/services/geo && npm test &&
+        echo '=== All tests passed ==='
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - track-that-net
+    environment:
+      - NODE_ENV=test
+    env_file: .env

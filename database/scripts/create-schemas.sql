@@ -1,0 +1,6 @@
+-- Create PostgreSQL schemas for domain separation
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS catalog;
+CREATE SCHEMA IF NOT EXISTS commerce;
+CREATE SCHEMA IF NOT EXISTS promotions;
+CREATE SCHEMA IF NOT EXISTS reviews;

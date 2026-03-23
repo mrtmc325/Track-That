@@ -1,0 +1,319 @@
+// Schema per security.least_privilege_everywhere — each service accesses only its own schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["auth", "catalog", "commerce", "promotions", "reviews"]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+// ---------------------------------------------------------------------------
+// Auth schema
+// ---------------------------------------------------------------------------
+
+model User {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String   @unique
+  password_hash         String
+  display_name          String
+  default_location_lat  Float?
+  default_location_lng  Float?
+  search_radius_miles   Int      @default(25)
+  preferred_categories  String[]
+  notify_price_drops    Boolean  @default(true)
+  notify_deal_alerts    Boolean  @default(true)
+  notify_order_updates  Boolean  @default(true)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  refresh_tokens RefreshToken[]
+  carts          Cart[]
+  orders         Order[]
+
+  @@map("users")
+  @@schema("auth")
+}
+
+model RefreshToken {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  token_hash String
+  expires_at DateTime
+  created_at DateTime @default(now())
+  revoked    Boolean  @default(false)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+  @@schema("auth")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog schema
+// ---------------------------------------------------------------------------
+
+enum StoreType {
+  GROCERY
+  CLOTHING
+  DEPARTMENT
+  SPECIALTY
+  PHARMACY
+  CONVENIENCE
+
+  @@schema("catalog")
+}
+
+enum AdapterType {
+  WEB_SCRAPER
+  API
+  FEED
+  CSV
+  MANUAL
+
+  @@schema("catalog")
+}
+
+model Store {
+  id                       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String
+  slug                     String      @unique
+  address                  String
+  city                     String
+  state                    String
+  zip                      String
+  location_lat             Float
+  location_lng             Float
+  phone                    String
+  website_url              String
+  store_type               StoreType
+  adapter_type             AdapterType
+  adapter_config_encrypted String?
+  scrape_frequency_minutes Int         @default(360)
+  is_active                Boolean     @default(true)
+  last_successful_scrape   DateTime?
+  product_count            Int         @default(0)
+  avg_rating               Float       @default(0)
+  created_at               DateTime    @default(now())
+  updated_at               DateTime    @updatedAt
+
+  store_products    StoreProduct[]
+  coupons           Coupon[]
+  order_store_groups OrderStoreGroup[]
+  reviews           StoreReview[]
+
+  @@map("stores")
+  @@schema("catalog")
+}
+
+model Product {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  canonical_name String
+  category       String
+  subcategory    String
+  unit_of_measure String
+  brand          String
+  description    String
+  image_urls     String[]
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  store_products StoreProduct[]
+
+  @@map("products")
+  @@schema("catalog")
+}
+
+model StoreProduct {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  store_id          String    @db.Uuid
+  product_id        String    @db.Uuid
+  current_price     Decimal   @db.Decimal(10, 2)
+  original_price    Decimal?  @db.Decimal(10, 2)
+  on_sale           Boolean   @default(false)
+  source_url        String
+  last_scraped      DateTime
+  price_valid_until DateTime?
+
+  store   Store   @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  cart_items CartItem[]
+
+  @@unique([store_id, product_id])
+  @@map("store_products")
+  @@schema("catalog")
+}
+
+// ---------------------------------------------------------------------------
+// Promotions schema
+// ---------------------------------------------------------------------------
+
+enum DiscountType {
+  PERCENT
+  ABSOLUTE
+  BOGO
+  FREE_ITEM
+
+  @@schema("promotions")
+}
+
+enum CouponSourceType {
+  FLYER
+  WEBSITE
+  AGGREGATOR
+  EMAIL
+
+  @@schema("promotions")
+}
+
+model Coupon {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  store_id             String           @db.Uuid
+  code                 String?
+  description          String
+  discount_type        DiscountType
+  discount_value       Decimal          @db.Decimal(10, 2)
+  minimum_purchase     Decimal?         @db.Decimal(10, 2)
+  applicable_products  String[]
+  applicable_categories String[]
+  valid_from           DateTime
+  valid_until          DateTime
+  source_type          CouponSourceType
+  source_url           String
+  confidence_score     Float            @default(1.0)
+  created_at           DateTime         @default(now())
+
+  store      Store      @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  cart_items CartItem[]
+
+  @@map("coupons")
+  @@schema("promotions")
+}
+
+// ---------------------------------------------------------------------------
+// Commerce schema
+// ---------------------------------------------------------------------------
+
+enum CartStatus {
+  EMPTY
+  ACTIVE
+  CHECKOUT
+  PAYMENT_PENDING
+  PROCESSING
+
+  @@schema("commerce")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+
+  @@schema("commerce")
+}
+
+enum FulfillmentMethod {
+  PICKUP
+  DELIVERY
+
+  @@schema("commerce")
+}
+
+enum OrderStoreGroupStatus {
+  PENDING
+  DISPATCHED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+
+  @@schema("commerce")
+}
+
+model Cart {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String     @db.Uuid
+  status     CartStatus @default(EMPTY)
+  created_at DateTime   @default(now())
+  updated_at DateTime   @updatedAt
+
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  cart_items CartItem[]
+  orders     Order[]
+
+  @@map("carts")
+  @@schema("commerce")
+}
+
+model CartItem {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cart_id            String   @db.Uuid
+  store_product_id   String   @db.Uuid
+  quantity           Int
+  unit_price         Decimal  @db.Decimal(10, 2)
+  applied_coupon_id  String?  @db.Uuid
+
+  cart          Cart         @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  store_product StoreProduct @relation(fields: [store_product_id], references: [id])
+  applied_coupon Coupon?     @relation(fields: [applied_coupon_id], references: [id])
+
+  @@map("cart_items")
+  @@schema("commerce")
+}
+
+model Order {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String      @db.Uuid
+  cart_id      String      @db.Uuid
+  status       OrderStatus @default(PENDING)
+  total_amount Decimal     @db.Decimal(10, 2)
+  placed_at    DateTime    @default(now())
+
+  user              User              @relation(fields: [user_id], references: [id])
+  cart              Cart              @relation(fields: [cart_id], references: [id])
+  order_store_groups OrderStoreGroup[]
+
+  @@map("orders")
+  @@schema("commerce")
+}
+
+model OrderStoreGroup {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id             String                @db.Uuid
+  store_id             String                @db.Uuid
+  fulfillment_method   FulfillmentMethod
+  delivery_tracking_id String?
+  delivery_provider    String?
+  subtotal             Decimal               @db.Decimal(10, 2)
+  delivery_fee         Decimal               @default(0) @db.Decimal(10, 2)
+  status               OrderStoreGroupStatus @default(PENDING)
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [store_id], references: [id])
+
+  @@map("order_store_groups")
+  @@schema("commerce")
+}
+
+// ---------------------------------------------------------------------------
+// Reviews schema
+// ---------------------------------------------------------------------------
+
+model StoreReview {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  store_id     String   @db.Uuid
+  source       String
+  rating       Float
+  review_count Int
+  last_synced  DateTime
+
+  store Store @relation(fields: [store_id], references: [id], onDelete: Cascade)
+
+  @@map("store_reviews")
+  @@schema("reviews")
+}

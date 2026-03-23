@@ -1,0 +1,51 @@
+http:
+  middlewares:
+    security-headers:
+      headers:
+        contentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        contentTypeNosniff: true
+        frameDeny: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(self), payment=()"
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+          X-Frame-Options: "DENY"
+
+    cors:
+      headers:
+        accessControlAllowOriginList:
+          - "https://localhost"
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PATCH"
+          - "DELETE"
+          - "OPTIONS"
+        accessControlAllowHeaders:
+          - "Content-Type"
+          - "Authorization"
+          - "X-CSRF-Token"
+          - "X-Request-ID"
+        accessControlAllowCredentials: true
+        accessControlMaxAge: 7200
+
+    rate-limit-auth:
+      rateLimit:
+        average: 30
+        burst: 5
+        period: 1m
+
+    rate-limit-search:
+      rateLimit:
+        average: 60
+        burst: 10
+        period: 1m
+
+    rate-limit-checkout:
+      rateLimit:
+        average: 10
+        burst: 3
+        period: 1m

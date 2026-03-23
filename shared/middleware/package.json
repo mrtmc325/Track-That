@@ -1,0 +1,10 @@
+{
+  "name": "@track-that/middleware",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "tsc" },
+  "dependencies": { "jsonwebtoken": "^9.0.0" },
+  "devDependencies": { "typescript": "^5.4.0", "@types/express": "^4.17.0", "@types/jsonwebtoken": "^9.0.0" }
+}

@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp.*
+.yarn/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Docker
+gateway/certs/*.pem
+gateway/certs/*.key
+gateway/certs/*.crt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Prisma
+database/prisma/*.db
+database/prisma/*.db-journal
+
+# Secrets (never commit)
+*.secret
+*.pem
+*.key
+credentials.json
+.env
+*.png

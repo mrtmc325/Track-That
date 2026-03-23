@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-23 — Sprint 12: Ad & Coupon Ingestion Pipeline (Phase 9)
+
+### Added
+- **Coupon Extraction** (services/ads-ingestion/src/services/extraction.service.ts)
+  - Regex-based extraction: percent, dollar, BOGO, free-item patterns
+  - Coupon code detection (CODE_PATTERN), minimum purchase, expiration dates
+  - Confidence scoring (0.0-1.0): +0.3 discount, +0.2 code, +0.2 dates, +0.2 description, +0.1 min purchase
+  - Multi-block extraction for flyer pages (splits on newlines, `<hr>`, `---`)
+  - HTML tag stripping on all input
+
+- **Coupon Validation** (services/ads-ingestion/src/services/validation.service.ts)
+  - Expiry rejection (valid_until < now)
+  - Deduplication by store_id + code + valid_period
+  - Suspicious discount flagging (>80% percent, >$100 absolute)
+  - Low confidence (<0.6) → manual review queue
+  - Batch validation with status summary counts
+
+- **Coupon Store** (services/ads-ingestion/src/services/coupon-store.service.ts)
+  - Store/query active coupons with store/product/category filters
+  - Auto-expire past-date coupons
+  - Flyer record upsert (store_id + source_url dedup)
+  - Today's best deals query
+
+- **Parsers** (services/ads-ingestion/src/parsers/)
+  - `json-api.parser.ts`: structured JSON input → CouponExtraction (0.9 confidence)
+  - `rss-feed.parser.ts`: feed items → text extraction → coupons (uses pubDate)
+
+- **Ads API Routes** (3 endpoints)
+  - `GET /api/v1/coupons?store_id=&product_id=&active=true`
+  - `GET /api/v1/deals/today?lat=&lng=&radius=&limit=`
+  - `GET /api/v1/flyers/:store_id`
+
+### Tests (37 new, all passing)
+- 15 extraction tests (patterns, confidence, HTML strip, metadata, multi-block)
+- 10 validation tests (expiry, dedup, suspicious, review queue, batch)
+- 7 JSON parser tests (percent, absolute, BOGO, batch, filters)
+- 5 RSS parser tests (feed items, pubDate, filtering)
+
 ## [1.1.0] - 2026-03-23 — Sprint 11: Delivery Brokering & Fulfillment (Phase 8)
 
 ### Added

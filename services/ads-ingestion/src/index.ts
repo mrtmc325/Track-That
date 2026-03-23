@@ -5,16 +5,15 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
+import adsRoutes from './routes/ads.routes.js';
 
 const app = express();
 
-// Security middleware
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'https://localhost', credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 
-// Request ID propagation per operability.observability_by_default
 app.use((req, res, next) => {
   const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
   req.headers['x-request-id'] = requestId;
@@ -22,20 +21,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health checks
 app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
-app.get('/readyz', (_req, res) => {
-  // TODO: Add dependency checks (DB, Redis, BullMQ) when connected
-  res.json({ status: 'ok', checks: [] });
-});
+app.get('/readyz', (_req, res) => { res.json({ status: 'ok', checks: [] }); });
 
-// TODO: Mount ads-ingestion routes
-// app.use('/api/v1/coupons', couponRoutes);
-// app.use('/api/v1/deals', dealRoutes);
-// app.use('/api/v1/flyers', flyerRoutes);
+app.use('/api/v1', adsRoutes);
 
 app.listen(config.PORT, () => {
-  logger.notice('ads-ingestion.startup', `Ads-ingestion service listening on port ${config.PORT}`, { port: config.PORT });
+  logger.notice('ads.startup', `Ads ingestion service listening on port ${config.PORT}`, { port: config.PORT });
 });
 
 export default app;

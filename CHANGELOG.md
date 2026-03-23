@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-23 — Sprint 10: Multi-Store Cart & Checkout (Phase 7)
+
+### Added
+- **Cart Service** (services/cart-checkout/src/services/cart.service.ts)
+  - Split-cart model with per-store grouping (StoreGroup → CartItem[])
+  - 7-state lifecycle machine: empty → active → checkout → payment_pending → processing → ordered/failed
+  - Idempotent addItem (increments quantity for duplicate product+store)
+  - 15-minute price lock window when entering checkout
+  - Fulfillment selection per store group (pickup/delivery with fee)
+  - Automatic total/subtotal recalculation with coupon discount support
+
+- **Checkout Service** (services/cart-checkout/src/services/checkout.service.ts)
+  - 4-step checkout: initiateCheckout → setFulfillment → processPayment → completeCheckout
+  - Price lock validation (409 if expired, resets to active)
+  - Mock Stripe PaymentIntent creation (client_secret + intent ID)
+  - Order + OrderStoreGroup creation with delivery tracking IDs
+  - Idempotent checkout initiation (refreshes price lock if already in checkout)
+  - Order history: getUserOrders + getOrder
+
+- **Cart/Checkout/Order API Routes** (10 endpoints)
+  - `GET /api/v1/cart` — Get current cart
+  - `POST /api/v1/cart/items` — Add item
+  - `PATCH /api/v1/cart/items/:id` — Update quantity
+  - `DELETE /api/v1/cart/items/:id` — Remove item
+  - `POST /api/v1/checkout/initiate` — Start checkout
+  - `POST /api/v1/checkout/fulfillment` — Set fulfillment per store group
+  - `POST /api/v1/checkout/pay` — Process payment
+  - `POST /api/v1/checkout/complete` — Finalize order
+  - `GET /api/v1/orders` — Order history
+  - `GET /api/v1/orders/:id` — Order detail (ownership verified)
+
+- **Zod Schemas** for all cart/checkout endpoints
+
+### Tests (39 new, all passing)
+- 23 cart tests (CRUD, store grouping, state machine, price lock, fulfillment, totals)
+- 16 checkout tests (initiation, payment, completion, order creation, idempotency, error paths)
+
 ## [0.9.0] - 2026-03-23 — Sprint 9: Geolocation & Map Integration (Phase 6)
 
 ### Added

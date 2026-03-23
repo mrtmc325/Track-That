@@ -199,6 +199,8 @@ services:
       - /tmp:size=128m
     environment:
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      - PROXY_URL=${PROXY_URL:-}
+      - PROXY_ENABLED=${PROXY_ENABLED:-false}
     env_file: .env
     networks:
       - track-that-net

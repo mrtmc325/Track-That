@@ -13,6 +13,7 @@ import type { StoreScraperConfig } from './store-configs.js';
 import { isAllowed } from '../utils/robots.js';
 import { waitForRateLimit } from '../utils/rate-limiter.js';
 import { logger } from '../utils/logger.js';
+import { proxyFetch, getRandomHeaders } from '../utils/proxy-client.js';
 
 export class WebScraperAdapter implements VendorAdapter {
   readonly type: AdapterType = 'web_scraper';
@@ -51,13 +52,10 @@ export class WebScraperAdapter implements VendorAdapter {
 
       let html: string;
       try {
-        const response = await fetch(source, {
+        // Route through proxy module with randomized browser headers
+        const response = await proxyFetch(source, {
           signal: controller.signal,
-          headers: {
-            'User-Agent': storeConfig.userAgent || 'TrackThat-Bot/1.0 (+https://trackhat.local/bot)',
-            'Accept': 'text/html,application/xhtml+xml',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
+          headers: getRandomHeaders(),
         });
         clearTimeout(timeout);
 

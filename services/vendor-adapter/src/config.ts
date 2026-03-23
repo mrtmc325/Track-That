@@ -29,6 +29,10 @@ const configSchema = z.object({
   SCRAPE_INTERVAL_MS: z.string().default('3600000'),
   SCRAPE_USER_AGENT: z.string().default('TrackThat-Bot/1.0'),
 
+  // Proxy configuration — all outbound scraping routes through this
+  PROXY_URL: z.string().default(''),           // http://user:pass@host:port
+  PROXY_ENABLED: z.string().default('false'),  // 'true' to enable
+
   CORS_ORIGIN: z.string().default('https://localhost'),
 });
 

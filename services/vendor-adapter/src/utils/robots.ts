@@ -35,9 +35,10 @@ export async function isAllowed(url: string): Promise<RobotsResult> {
 
   try {
     const robotsUrl = `${domain}/robots.txt`;
-    const response = await fetch(robotsUrl, {
+    // Route through proxy module for consistent anti-detection
+    const { proxyFetch } = await import('./proxy-client.js');
+    const response = await proxyFetch(robotsUrl, {
       signal: AbortSignal.timeout(5000), // 5s timeout per reliability.timeouts_retries_and_circuit_breakers
-      headers: { 'User-Agent': `${USER_AGENT}/1.0 (+https://trackhat.local/bot)` },
     });
 
     if (!response.ok) {

@@ -18,6 +18,7 @@ import type { StoreScraperConfig } from './store-configs.js';
 import { isAllowed } from '../utils/robots.js';
 import { waitForRateLimit } from '../utils/rate-limiter.js';
 import { logger } from '../utils/logger.js';
+import { getPuppeteerProxyArgs, getRandomUserAgent } from '../utils/proxy-client.js';
 
 /** Chromium path — set via PUPPETEER_EXECUTABLE_PATH env var in Docker */
 const CHROMIUM_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
@@ -43,6 +44,7 @@ async function getBrowser(): Promise<puppeteer.Browser> {
       '--single-process',            // Reduce memory in container
       '--disable-background-networking',
       '--disable-default-apps',
+      ...getPuppeteerProxyArgs(),    // Inject proxy if PROXY_URL is configured
     ],
     timeout: 15000,
   });
@@ -101,7 +103,8 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
 
       // Set viewport and user agent
       await page.setViewport({ width: 1280, height: 800 });
-      await page.setUserAgent(storeConfig.userAgent || 'TrackThat-Bot/1.0 (+https://trackhat.local/bot)');
+      // Use randomized User-Agent from proxy module (not bot identifier)
+      await page.setUserAgent(getRandomUserAgent());
 
       // Block unnecessary resources to speed up page load
       await page.setRequestInterception(true);

@@ -17,12 +17,14 @@ import type { StoreScraperConfig } from './store-configs.js';
 import { waitForRateLimit } from '../utils/rate-limiter.js';
 import { logger } from '../utils/logger.js';
 import { getPuppeteerProxyArgs, getRandomUserAgent } from '../utils/proxy-client.js';
+import { detectCaptcha, getSession } from '../services/captcha.service.js';
 
 puppeteerExtra.use(StealthPlugin());
 
 const CHROMIUM_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
-const PAGE_TIMEOUT = 30000;
-const SELECTOR_TIMEOUT = 15000;
+const PAGE_TIMEOUT = 120000;   // 2 minutes — user may need to solve CAPTCHA
+const SELECTOR_TIMEOUT = 30000; // 30s after CAPTCHA solved
+const CAPTCHA_WAIT_MS = 120000; // 2 minutes max wait for user to solve
 const MAX_PRODUCTS = 50;
 
 let browserInstance: Browser | null = null;
@@ -244,6 +246,51 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
 
       // Navigate
       await page.goto(source, { waitUntil: 'networkidle2', timeout: PAGE_TIMEOUT });
+
+      // ─── CAPTCHA DETECTION & RELAY ───
+      // Check if the page shows a CAPTCHA challenge.
+      // If detected, store session so frontend can relay user clicks to solve it.
+      const captchaResult = await detectCaptcha(page, storeConfig.domain, storeConfig.query || '');
+      if (captchaResult.detected) {
+        logger.notice('puppeteer.captcha_waiting', `CAPTCHA detected on ${storeConfig.domain}. Waiting for user to solve...`, {
+          sessionId: captchaResult.sessionId,
+          domain: storeConfig.domain,
+        });
+
+        // Wait up to 2 minutes for the user to solve the CAPTCHA via the frontend modal
+        const solved = await new Promise<boolean>((resolve) => {
+          const timeout = setTimeout(() => resolve(false), CAPTCHA_WAIT_MS);
+          const check = setInterval(() => {
+            const session = getSession(captchaResult.sessionId);
+            if (!session || session.solved) {
+              clearTimeout(timeout);
+              clearInterval(check);
+              resolve(true);
+            }
+          }, 1000);
+        });
+
+        if (!solved) {
+          logger.warning('puppeteer.captcha_timeout', `CAPTCHA timeout on ${storeConfig.domain}`, { domain: storeConfig.domain });
+          return {
+            success: false,
+            products: [],
+            errors: ['CAPTCHA not solved within timeout'],
+            extraction_time_ms: Date.now() - startTime,
+            source,
+            captchaRequired: true,
+            captchaSessionId: captchaResult.sessionId,
+            captchaScreenshot: captchaResult.screenshot,
+          } as any;
+        }
+
+        logger.notice('puppeteer.captcha_solved', `CAPTCHA solved on ${storeConfig.domain}. Continuing extraction.`, {
+          domain: storeConfig.domain,
+        });
+
+        // Wait for page to reload/update after CAPTCHA solve
+        await new Promise(r => setTimeout(r, 3000));
+      }
 
       // Simulate human behavior BEFORE extraction (triggers lazy-load, passes behavior checks)
       await simulateHumanBehavior(page);

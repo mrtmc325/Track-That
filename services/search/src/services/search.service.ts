@@ -350,7 +350,7 @@ export async function searchWithCrawl(
           lng: params.lng,
           radius: params.radius || 25,
         }),
-        signal: AbortSignal.timeout(65000), // 65s — must exceed vendor crawl's 60s timeout
+        signal: AbortSignal.timeout(130000), // 130s — must exceed vendor crawl's 120s CAPTCHA wait
       });
 
       if (crawlResponse.ok) {

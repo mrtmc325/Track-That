@@ -20,7 +20,7 @@ function getCookie(name: string): string | null {
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // send HttpOnly auth cookies
-  timeout: 75000, // 75s — stealth crawls take up to 65s
+  timeout: 180000, // 180s — CAPTCHA solving can take up to 2 minutes
   headers: {
     'Content-Type': 'application/json',
   },

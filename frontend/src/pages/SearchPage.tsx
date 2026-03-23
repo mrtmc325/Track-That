@@ -1,5 +1,6 @@
 // Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useSearch } from '../hooks/useSearch';
 import { useGeoStore } from '../stores/geoStore';
@@ -7,9 +8,12 @@ import LoadingSpinner from '../components/shared/LoadingSpinner';
 import EmptyState from '../components/shared/EmptyState';
 import Badge from '../components/shared/Badge';
 import LocationBar from '../components/shared/LocationBar';
+import CaptchaModal from '../components/shared/CaptchaModal';
+import apiClient from '../api/client';
 
 export default function SearchPage() {
   const [params] = useSearchParams();
+  const [captcha, setCaptcha] = useState<{ sessionId: string; screenshot: string; domain: string } | null>(null);
   const query = params.get('q') || '';
   const category = params.get('category') || undefined;
   const page = parseInt(params.get('page') || '1', 10);
@@ -40,17 +44,47 @@ export default function SearchPage() {
     );
   }
 
+  // Poll for CAPTCHA sessions while search is loading
+  useEffect(() => {
+    if (!isLoading) { setCaptcha(null); return; }
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await apiClient.get('/captcha/pending');
+        if (data.success && data.data.sessions.length > 0) {
+          const s = data.data.sessions[0];
+          setCaptcha({ sessionId: s.id, screenshot: s.screenshot, domain: s.domain });
+        }
+      } catch { /* ignore polling errors */ }
+    }, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center py-16 space-y-4">
+      {/* CAPTCHA Modal overlays the loading state */}
+      {captcha && (
+        <CaptchaModal
+          sessionId={captcha.sessionId}
+          initialScreenshot={captcha.screenshot}
+          domain={captcha.domain}
+          onSolved={() => setCaptcha(null)}
+          onDismiss={() => setCaptcha(null)}
+        />
+      )}
       <LoadingSpinner size="lg" />
       <h2 className="text-lg font-semibold text-slate-700">Searching nearby stores...</h2>
       <p className="text-sm text-slate-500 max-w-md text-center">
-        We&apos;re checking real prices at stores near you. This may take up to 30 seconds as we scan multiple retailers for the best deals.
+        We&apos;re checking real prices at stores near you. This may take up to 2 minutes as we scan multiple retailers for the best deals.
       </p>
       <div className="flex items-center gap-2 text-xs text-indigo-500">
         <span className="animate-pulse">●</span>
         Crawling Walmart, Target, Fry&apos;s, Sprouts...
       </div>
+      {captcha && (
+        <p className="text-sm font-medium text-amber-600">
+          ⚠️ {captcha.domain} requires a security check — please solve it above
+        </p>
+      )}
     </div>
   );
 

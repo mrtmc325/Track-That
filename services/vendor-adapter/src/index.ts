@@ -10,6 +10,7 @@ import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
 import crawlRoutes from './routes/crawl.routes.js';
+import captchaRoutes from './routes/captcha.routes.js';
 
 const app = express();
 
@@ -36,6 +37,8 @@ app.get('/readyz', (_req, res) => {
 
 // Mount crawl API for inter-service calls from search service
 app.use('/api/v1', crawlRoutes);
+// Mount CAPTCHA relay API for frontend to relay user clicks to Puppeteer
+app.use('/api/v1/captcha', captchaRoutes);
 
 app.listen(config.PORT, () => {
   logger.notice('vendor-adapter.startup', `Vendor-adapter service listening on port ${config.PORT}`, { port: config.PORT });

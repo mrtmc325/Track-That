@@ -49,6 +49,11 @@ export interface CrawlResponse {
   stores_failed: number;
   total_products_found: number;
   crawl_time_ms: number;
+  /** If a store presented a CAPTCHA, these fields allow the frontend to relay the solve */
+  captcha_required?: boolean;
+  captcha_session_id?: string;
+  captcha_screenshot?: string;
+  captcha_domain?: string;
 }
 
 // Adapter instances — reused across crawls
@@ -89,6 +94,9 @@ export async function crawlForProducts(request: CrawlRequest): Promise<CrawlResp
     radius,
   });
 
+  // Track CAPTCHA sessions from any store
+  let captchaInfo: { required: boolean; sessionId: string; screenshot: string; domain: string } = { required: false, sessionId: '', screenshot: '', domain: '' };
+
   // 2. Crawl each store in parallel (with per-store timeout)
   let storesCrawled = 0;
   let storesFailed = 0;
@@ -109,6 +117,16 @@ export async function crawlForProducts(request: CrawlRequest): Promise<CrawlResp
         storeName: config.name,
         storeLocation: location,
       } as any);
+
+      // Check if adapter returned a CAPTCHA session
+      if ((result as any).captchaRequired && (result as any).captchaSessionId) {
+        captchaInfo = {
+          required: true,
+          sessionId: (result as any).captchaSessionId,
+          screenshot: (result as any).captchaScreenshot || '',
+          domain: config.domain,
+        };
+      }
 
       if (result.success && result.products.length > 0) {
         storesCrawled++;
@@ -138,10 +156,10 @@ export async function crawlForProducts(request: CrawlRequest): Promise<CrawlResp
     }
   });
 
-  // Wait for all crawls — 60s overall timeout (users accept longer waits to save money)
+  // Wait for all crawls — 180s overall timeout (CAPTCHA solving can take up to 2 minutes)
   await Promise.race([
     Promise.allSettled(crawlPromises),
-    new Promise(resolve => setTimeout(resolve, 60000)),
+    new Promise(resolve => setTimeout(resolve, 180000)),
   ]);
 
   // Close Puppeteer browser after batch to free memory
@@ -197,5 +215,11 @@ export async function crawlForProducts(request: CrawlRequest): Promise<CrawlResp
     stores_failed: storesFailed,
     total_products_found: allNormalized.length,
     crawl_time_ms: Date.now() - startTime,
+    ...(captchaInfo.required && {
+      captcha_required: true,
+      captcha_session_id: captchaInfo.sessionId,
+      captcha_screenshot: captchaInfo.screenshot,
+      captcha_domain: captchaInfo.domain,
+    }),
   };
 }

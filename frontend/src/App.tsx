@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // This file is part of Track-That. See LICENSE for details.
 
+import { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import AppRoutes from './router';
+import { useAuthStore } from './stores/authStore';
+import apiClient from './api/client';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,11 +19,38 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * Bootstrap auth state on app load.
+ * If the user has a valid access_token cookie (HttpOnly, set by auth service),
+ * fetch their profile and hydrate the Zustand store.
+ * This runs once on mount — restores sessions after page reload/navigation.
+ */
+function AuthBootstrap() {
+  const { setUser, isAuthenticated } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated) return; // Already hydrated
+
+    apiClient.get('/users/me')
+      .then(res => {
+        if (res.data?.success && res.data?.data) {
+          setUser(res.data.data);
+        }
+      })
+      .catch(() => {
+        // Not logged in — that's fine, no action needed
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
+          <AuthBootstrap />
           <AppRoutes />
         </BrowserRouter>
       </QueryClientProvider>

@@ -1,0 +1,184 @@
+%%{ init: { "theme": "base", "themeVariables": { "primaryColor": "#1a1a2e", "primaryTextColor": "#eaeaea", "lineColor": "#4cc9f0", "secondaryColor": "#16213e", "tertiaryColor": "#0f3460" } } }%%
+flowchart TD
+
+%% ═══════════════════════════════════════════════════════════════
+%% SECURITY BOUNDARY: Public Internet
+%% ═══════════════════════════════════════════════════════════════
+
+    subgraph INTERNET["Security Boundary: Public Internet"]
+        direction LR
+        USER["User Browser\n(React SPA · Vite · Tailwind)"]
+        STRIPE_JS["Stripe.js\n(PCI card input)"]
+    end
+
+%% ═══════════════════════════════════════════════════════════════
+%% SECURITY BOUNDARY: DMZ / Edge Layer
+%% ═══════════════════════════════════════════════════════════════
+
+    subgraph DMZ["Security Boundary: DMZ — Edge Layer"]
+        direction TB
+        TRAEFIK["API Gateway — Traefik\n• TLS termination (HTTPS :443)\n• Rate limiting (5 tiers)\n• CORS enforcement\n• X-Request-ID injection\n• JWT pre-validation"]
+        WAF["WAF Middleware\n• OWASP CRS rules\n• SQL/XSS pattern blocking\n• IP reputation"]
+        STATIC["Static File Server\n(Nginx · serves SPA bundle)"]
+    end
+
+%% ═══════════════════════════════════════════════════════════════
+%% SECURITY BOUNDARY: Internal Application Network (Docker)
+%% All containers: non-root (trackuser UID 1000), read-only rootfs,
+%% no-new-privileges, cap_drop ALL
+%% ═══════════════════════════════════════════════════════════════
+
+    subgraph APPNET["Security Boundary: Internal Docker Network — All Non-Root"]
+        direction TB
+
+        subgraph AUTH_GROUP["Authentication Domain"]
+            AUTH["Auth Service :3001\n• Registration / Login\n• JWT (RS256, 15m) + Refresh (7d)\n• bcrypt cost=12\n• Rate limit: 5 fail/15m\n• CSRF double-submit tokens"]
+        end
+
+        subgraph SEARCH_GROUP["Search & Discovery Domain"]
+            SEARCH["Search Service :3002\n• Full-text Elasticsearch queries\n• Query normalization / stemming\n• Synonym expansion\n• Dictionary validation\n• Fuzzy match (Levenshtein ≤2)\n• Autocomplete (completion suggester)"]
+
+            VENDOR["Vendor Adapter :3007\n• Web scraper (Cheerio/Puppeteer)\n• REST/GraphQL API adapters\n• RSS/Atom feed parser\n• CSV/spreadsheet parser\n• Data normalizer + deduplicator\n• robots.txt compliant\n• 1 req/sec/domain rate limit"]
+
+            ADS["Ad & Coupon Ingestion :3006\n• Flyer page scraper\n• OCR (Tesseract) for image flyers\n• Coupon code extraction\n• Confidence scoring (0.0–1.0)\n• Scheduled: flyers Sun+Wed,\n  coupons q6h, feeds q2h"]
+        end
+
+        subgraph PRICING_GROUP["Pricing & Deals Domain"]
+            PRICE["Price Engine :3003\n• Deal scoring algorithm:\n  45% price + 25% distance\n  + 10% freshness + 10% rating\n  + 10% coupon bonus\n• Coupon application logic\n• Price staleness tracking\n  (fresh/aging/stale/expired)\n• Similar-items fallback"]
+        end
+
+        subgraph COMMERCE_GROUP["Commerce Domain"]
+            CART["Cart & Checkout :3004\n• Split-cart model (per-store groups)\n• 15-minute price lock window\n• Stripe PaymentIntent orchestration\n• Order creation + sub-orders\n• Refund management"]
+
+            DELIVERY["Delivery Broker :3005\n• Provider selection by weight class:\n  <30lb → DoorDash/Uber\n  <10lb → + USPS local\n  >30lb → store/courier\n• Quote aggregation\n• Webhook ingestion (HMAC verified)\n• Delivery status tracking"]
+        end
+
+        subgraph GEO_GROUP["Geolocation Domain"]
+            GEO["Geo Service :3008\n• Haversine distance calc\n• Nominatim geocoding (OSM)\n• Geohash-bucketed distance cache\n• Store proximity queries\n• Privacy: session-only by default"]
+        end
+    end
+
+%% ═══════════════════════════════════════════════════════════════
+%% SECURITY BOUNDARY: Data Layer
+%% ═══════════════════════════════════════════════════════════════
+
+    subgraph DATANET["Security Boundary: Data Layer — Encrypted at Rest"]
+        direction LR
+        PG[("PostgreSQL 16\n• Schemas: auth, catalog,\n  commerce, promotions, reviews\n• PostGIS for geospatial\n• Per-service DB roles\n  (least privilege)\n• WAL archiving (RPO 5m)\n• LUKS volume encryption")]
+
+        ES[("Elasticsearch 8\n• Product search index\n• Nested store_listings\n  with geo_point\n• Custom product_analyzer\n• Completion suggester\n• 30s refresh interval")]
+
+        REDIS[("Redis 7\n• Price comparison cache (10m)\n• Search result cache (5m)\n• Distance cache (24h)\n• Rate limiter state\n• Session store\n• BullMQ job queue")]
+    end
+
+%% ═══════════════════════════════════════════════════════════════
+%% SECURITY BOUNDARY: External Services (HTTPS only)
+%% ═══════════════════════════════════════════════════════════════
+
+    subgraph EXTERNAL["Security Boundary: External APIs — HTTPS Only"]
+        direction LR
+        VENDOR_SITES["Vendor Websites\n(scraped · rate-limited\n· robots.txt respected)"]
+        STRIPE_API["Stripe API\n• PaymentIntents\n• SetupIntents (saved cards)\n• Refunds\n• Webhooks (HMAC)"]
+        DOORDASH["DoorDash Drive API\n• Delivery quotes\n• Order dispatch\n• Status webhooks (HMAC)"]
+        UBER["Uber Direct API\n• Delivery quotes\n• Order dispatch\n• Status webhooks (HMAC)"]
+        OSM["OpenStreetMap\n• Tile server (Leaflet)\n• Nominatim geocoding"]
+        REVIEW_APIS["Review Aggregators\n(Yelp, Google Places)\n• Store rating sync"]
+    end
+
+%% ═══════════════════════════════════════════════════════════════
+%% OBSERVABILITY SIDECAR
+%% ═══════════════════════════════════════════════════════════════
+
+    subgraph OBS["Observability Stack"]
+        direction LR
+        FLUENTD["Fluentd / Vector\n(log aggregator)"]
+        LOKI["Loki / ES\n(log storage)"]
+        GRAFANA["Grafana\n(dashboards + alerts)"]
+        PROM["Prometheus\n(metrics)"]
+    end
+
+%% ═══════════════════════════════════════════════════════════════
+%% DATA FLOW CONNECTIONS
+%% ═══════════════════════════════════════════════════════════════
+
+    %% User → Edge
+    USER -->|"HTTPS :443\nJWT in HttpOnly cookie\nCSRF token header"| TRAEFIK
+    USER -->|"Stripe.js\n(card never hits our servers)"| STRIPE_JS
+    STRIPE_JS -->|"HTTPS\ntokenized card"| STRIPE_API
+    TRAEFIK --> WAF
+    WAF -->|"/* static assets"| STATIC
+    TRAEFIK -->|"SPA bundle"| STATIC
+
+    %% Edge → Services (internal TLS, X-Request-ID propagated)
+    WAF -->|"/api/v1/auth/*"| AUTH
+    WAF -->|"/api/v1/search/*\n/api/v1/products/*\n/api/v1/categories"| SEARCH
+    WAF -->|"/api/v1/prices/*"| PRICE
+    WAF -->|"/api/v1/cart/*\n/api/v1/checkout/*\n/api/v1/orders/*"| CART
+    WAF -->|"/api/v1/delivery/*"| DELIVERY
+    WAF -->|"/api/v1/coupons/*\n/api/v1/deals/*\n/api/v1/flyers/*"| ADS
+    WAF -->|"/api/v1/geo/*"| GEO
+
+    %% Service → Data
+    AUTH -->|"read/write auth.*"| PG
+    SEARCH -->|"full-text queries"| ES
+    VENDOR -->|"write catalog.*"| PG
+    VENDOR -->|"index products"| ES
+    ADS -->|"write promotions.*"| PG
+    PRICE -->|"read catalog + promotions"| PG
+    PRICE -->|"price cache r/w"| REDIS
+    CART -->|"read/write commerce.*"| PG
+    GEO -->|"read catalog.stores"| PG
+    GEO -->|"distance cache"| REDIS
+    SEARCH -->|"result cache"| REDIS
+    AUTH -->|"session + rate limit"| REDIS
+
+    %% Service → Service
+    SEARCH -->|"trigger scrape"| VENDOR
+    PRICE -->|"get active coupons"| ADS
+    CART -->|"verify prices"| PRICE
+    CART -->|"get delivery quotes"| DELIVERY
+    CART -->|"PaymentIntent"| STRIPE_API
+
+    %% Service → External
+    VENDOR -->|"HTTPS scrape\n(1 req/sec/domain)"| VENDOR_SITES
+    ADS -->|"HTTPS scrape\nflyers + coupons"| VENDOR_SITES
+    DELIVERY -->|"HTTPS\nquote + dispatch"| DOORDASH
+    DELIVERY -->|"HTTPS\nquote + dispatch"| UBER
+    GEO -->|"HTTPS\ngeocode + tiles"| OSM
+    VENDOR -->|"HTTPS\nrating sync"| REVIEW_APIS
+
+    %% External → Service (webhooks)
+    STRIPE_API -->|"webhook (HMAC)\npayment events"| CART
+    DOORDASH -->|"webhook (HMAC)\ndelivery status"| DELIVERY
+    UBER -->|"webhook (HMAC)\ndelivery status"| DELIVERY
+
+    %% Observability
+    AUTH -.->|"structured JSON logs\nsyslog 0-7"| FLUENTD
+    SEARCH -.->|"structured JSON logs"| FLUENTD
+    PRICE -.->|"structured JSON logs"| FLUENTD
+    CART -.->|"structured JSON logs"| FLUENTD
+    DELIVERY -.->|"structured JSON logs"| FLUENTD
+    ADS -.->|"structured JSON logs"| FLUENTD
+    VENDOR -.->|"structured JSON logs"| FLUENTD
+    GEO -.->|"structured JSON logs"| FLUENTD
+    FLUENTD -->|"ship"| LOKI
+    LOKI --> GRAFANA
+    PROM --> GRAFANA
+
+%% ═══════════════════════════════════════════════════════════════
+%% STYLES
+%% ═══════════════════════════════════════════════════════════════
+
+    classDef secBoundary fill:#0d1b2a,stroke:#4cc9f0,stroke-width:2px,color:#e0e0e0
+    classDef service fill:#1b263b,stroke:#4cc9f0,stroke-width:1px,color:#e0e0e0
+    classDef datastore fill:#1b263b,stroke:#f72585,stroke-width:2px,color:#e0e0e0
+    classDef external fill:#2b2d42,stroke:#fca311,stroke-width:1px,color:#e0e0e0
+    classDef obs fill:#0d1b2a,stroke:#06d6a0,stroke-width:1px,color:#e0e0e0
+    classDef edge fill:#16213e,stroke:#4895ef,stroke-width:2px,color:#e0e0e0
+
+    class AUTH,SEARCH,VENDOR,ADS,PRICE,CART,DELIVERY,GEO service
+    class PG,ES,REDIS datastore
+    class VENDOR_SITES,STRIPE_API,STRIPE_JS,DOORDASH,UBER,OSM,REVIEW_APIS external
+    class TRAEFIK,WAF,STATIC edge
+    class FLUENTD,LOKI,GRAFANA,PROM obs
+    class USER external

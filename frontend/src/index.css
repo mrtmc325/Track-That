@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Focus styles for accessibility (WCAG 2.1 AA) */
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-indigo-500;
+}

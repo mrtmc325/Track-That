@@ -1,10 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
-
-// ---------------------------------------------------------------------------
-// Lazy page imports — actual components are TODO; placeholders shown below.
-// Replace each `() => import('./pages/...')` with the real module once created.
-// ---------------------------------------------------------------------------
+import MainLayout from './components/layout/MainLayout';
+import AuthLayout from './components/layout/AuthLayout';
+import LoadingSpinner from './components/shared/LoadingSpinner';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
@@ -19,50 +17,29 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
-// ---------------------------------------------------------------------------
-// Route config — exported so tests and breadcrumb helpers can inspect it.
-// ---------------------------------------------------------------------------
-
-export interface RouteConfig {
-  path: string;
-  label: string;
-  protected?: boolean;
-}
-
-export const routeConfig: RouteConfig[] = [
-  { path: '/', label: 'Home' },
-  { path: '/search', label: 'Search' },
-  { path: '/stores/:storeSlug', label: 'Store', protected: false },
-  { path: '/products/:productId', label: 'Product' },
-  { path: '/cart', label: 'Cart', protected: true },
-  { path: '/checkout', label: 'Checkout', protected: true },
-  { path: '/orders', label: 'Orders', protected: true },
-  { path: '/orders/:orderId', label: 'Order Detail', protected: true },
-  { path: '/profile', label: 'Profile', protected: true },
-  { path: '/login', label: 'Login' },
-  { path: '/register', label: 'Register' },
-];
-
-// ---------------------------------------------------------------------------
-// Rendered route tree
-// ---------------------------------------------------------------------------
-
 export default function AppRoutes() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center text-gray-500">Loading…</div>}>
+    <Suspense fallback={<LoadingSpinner size="lg" />}>
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/stores/:storeSlug" element={<StorePage />} />
-        <Route path="/products/:productId" element={<ProductPage />} />
-        <Route path="/cart" element={<CartPage />} />
-        <Route path="/checkout" element={<CheckoutPage />} />
-        <Route path="/orders" element={<OrdersPage />} />
-        <Route path="/orders/:orderId" element={<OrderDetailPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        {/* Auth pages — minimal layout */}
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+        </Route>
+
+        {/* Main app — full layout with nav */}
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/stores/:storeSlug" element={<StorePage />} />
+          <Route path="/products/:productId" element={<ProductPage />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/orders/:orderId" element={<OrderDetailPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
       </Routes>
     </Suspense>
   );

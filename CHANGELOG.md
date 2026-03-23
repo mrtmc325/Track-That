@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-03-23 — Sprint 16: Frontend Web Application (Phase 13)
+
+### Added
+- **React SPA** (frontend/src/) — 28 files, fully typed TypeScript + Tailwind CSS
+  - **Router**: Nested layout routes (AuthLayout + MainLayout), lazy-loaded pages with code splitting
+  - **Zustand Stores**: authStore (user state), cartStore (items/total/count), geoStore (lat/lng/radius)
+  - **Layouts**: AuthLayout (centered card), MainLayout (TopNav + Footer + Outlet)
+  - **TopNav**: Search form, cart badge with live count, auth-aware user menu
+  - **12 Pages**: Login, Register, Home (hero search + categories), Search, Product, Cart, Checkout, Orders, OrderDetail, Profile, Store, 404
+  - **Shared Components**: ErrorBoundary (class component), LoadingSpinner (3 sizes), EmptyState, Badge (6 variants)
+  - **API Client**: Axios with CSRF double-submit, X-Request-ID injection, 401 redirect, error normalization
+  - **Accessibility**: Semantic HTML, ARIA labels on all interactive elements, sr-only labels, role attributes, keyboard navigation, focus-visible outlines
+  - **Security (13.7)**: No dangerouslySetInnerHTML, no contenteditable, CSP-compatible, all data rendered as text
+
+### Build Performance (within spec 13.5 budgets)
+- Main bundle: 65KB gzipped (budget: <200KB) ✅
+- Per-route chunks: 0.3-2.0KB each (budget: <50KB) ✅
+- Code splitting via React.lazy on all 12 pages
+
+### Page Architecture
+| Route | Page | Auth Required |
+|-------|------|--------------|
+| `/login` | LoginPage (AuthLayout) | No |
+| `/register` | RegisterPage (AuthLayout) | No |
+| `/` | HomePage (MainLayout) | No |
+| `/search?q=` | SearchPage | No |
+| `/products/:id` | ProductPage | No |
+| `/cart` | CartPage | Yes |
+| `/checkout` | CheckoutPage | Yes |
+| `/orders` | OrdersPage | Yes |
+| `/orders/:id` | OrderDetailPage | Yes |
+| `/profile` | ProfilePage | Yes |
+| `/stores/:slug` | StorePage | No |
+
 ## [1.5.0] - 2026-03-23 — Sprint 15: API Gateway & Service Mesh (Phase 12)
 
 ### Added

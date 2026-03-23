@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-23 — Sprint 11: Delivery Brokering & Fulfillment (Phase 8)
+
+### Added
+- **Delivery Provider Adapters** (services/delivery-broker/src/providers/)
+  - `DeliveryProvider` interface with `getQuote()` + `dispatch()` contract
+  - `DoorDashProvider`: 30lb limit, mock pricing ($3.99 base + $0.50/mi + $0.10/lb)
+  - `UberDirectProvider`: 25lb limit, mock pricing ($4.49 base + $0.45/mi + $0.12/lb)
+  - `PickupProvider`: no weight limit, zero fee, user-defined timing
+
+- **Broker Service** (services/delivery-broker/src/services/broker.service.ts)
+  - Parallel quote fetching via `Promise.allSettled` (circuit-breaker safe)
+  - Weight-based provider routing: <10lb all, <30lb DD/Uber, >30lb store/courier
+  - `selectProvider()`: cheapest available meeting weight requirement
+  - `dispatch()`: delegates to selected provider with error handling
+
+- **Delivery Tracking** (services/delivery-broker/src/services/tracking.service.ts)
+  - 7-state machine: pending → accepted → picking_up → in_transit → delivered/failed
+  - cancelled → pending retry path
+  - Idempotent event processing via event_id deduplication
+  - Full status history with timestamps per delivery
+
+- **Webhook Security** (services/delivery-broker/src/security/hmac.ts)
+  - HMAC-SHA256 signature verification with constant-time comparison
+  - 5-minute replay protection via timestamp freshness check
+  - Event ID deduplication (in-memory, Redis in production)
+  - Per-provider secret management (env vars, dev fallbacks)
+
+- **Delivery API Routes** (4 endpoints)
+  - `POST /api/v1/delivery/quote` — Get quotes from all eligible providers
+  - `POST /api/v1/delivery/dispatch` — Dispatch to selected provider
+  - `GET /api/v1/delivery/:id/status` — Track delivery status
+  - `POST /api/v1/delivery/webhook/:provider` — HMAC-verified inbound webhooks
+
+### Tests (30 new, all passing)
+- 10 broker tests (quotes, weight filtering, provider selection, dispatch)
+- 11 tracking tests (state machine, idempotency, history, transitions)
+- 9 HMAC tests (signature verification, replay protection, timestamp, providers)
+
 ## [1.0.0] - 2026-03-23 — Sprint 10: Multi-Store Cart & Checkout (Phase 7)
 
 ### Added

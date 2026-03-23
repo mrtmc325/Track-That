@@ -222,4 +222,88 @@ export function _resetStores(): void {
   users.clear();
   usersByEmail.clear();
   refreshTokens.clear();
+  passwordResetTokens.clear();
+}
+
+// Password reset token store (dev mode, Redis in production)
+const passwordResetTokens = new Map<string, { user_id: string; token_hash: string; expires_at: Date }>();
+
+/**
+ * Generate a password reset token for a user.
+ * Token is SHA-256 hashed before storage — raw token sent to user only.
+ * Expires in 1 hour per security best practice.
+ */
+export async function generatePasswordResetToken(email: string): Promise<string | null> {
+  const user = usersByEmail.get(email);
+  if (!user) {
+    // Return null but don't reveal whether user exists
+    return null;
+  }
+
+  const token = crypto.randomUUID();
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+  passwordResetTokens.set(tokenHash, {
+    user_id: user.id,
+    token_hash: tokenHash,
+    expires_at: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+  });
+
+  logger.notice('auth.password_reset_requested', 'Password reset token generated', { user_id: user.id });
+  return token;
+}
+
+/**
+ * Verify a password reset token and change the password.
+ * Token is consumed (single-use) after successful reset.
+ */
+export async function resetPassword(token: string, newPassword: string): Promise<boolean> {
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const record = passwordResetTokens.get(tokenHash);
+
+  if (!record || record.expires_at < new Date()) {
+    if (record) passwordResetTokens.delete(tokenHash); // Clean up expired
+    return false;
+  }
+
+  const user = users.get(record.user_id);
+  if (!user) return false;
+
+  // Hash new password and update
+  user.password_hash = await hashPassword(newPassword);
+  user.updated_at = new Date();
+
+  // Consume token (single-use)
+  passwordResetTokens.delete(tokenHash);
+
+  // Revoke all existing sessions for security
+  await revokeAllTokens(record.user_id);
+
+  logger.notice('auth.password_reset', 'Password reset completed', { user_id: record.user_id });
+  return true;
+}
+
+/**
+ * Update user profile fields.
+ * Only updates provided fields, preserves others.
+ */
+export function updateUser(userId: string, updates: Record<string, unknown>): Omit<UserRecord, 'password_hash'> | null {
+  const user = users.get(userId);
+  if (!user) return null;
+
+  const allowedFields = [
+    'display_name', 'default_location_lat', 'default_location_lng',
+    'search_radius_miles', 'preferred_categories',
+    'notify_price_drops', 'notify_deal_alerts', 'notify_order_updates',
+  ];
+
+  for (const field of allowedFields) {
+    if (field in updates && updates[field] !== undefined) {
+      (user as Record<string, unknown>)[field] = updates[field];
+    }
+  }
+  user.updated_at = new Date();
+
+  const { password_hash: _, ...safeUser } = user;
+  return safeUser;
 }

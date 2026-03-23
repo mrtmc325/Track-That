@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as authService from '../services/auth.service.js';
 import { recordFailedAttempt, clearAttempts } from '../middleware/rate-limit.js';
+import { setCsrfToken } from '../middleware/csrf.js';
 import { logger } from '../utils/logger.js';
 
 const COOKIE_OPTIONS = {
@@ -17,6 +18,7 @@ export async function register(req: Request, res: Response): Promise<void> {
     // Set auth cookies per plan spec (HttpOnly, Secure, SameSite=Strict)
     res.cookie('access_token', result.accessToken, { ...COOKIE_OPTIONS, maxAge: 15 * 60 * 1000 });
     res.cookie('refresh_token', result.refreshToken, { ...COOKIE_OPTIONS, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    setCsrfToken(res);
 
     res.status(201).json({
       success: true,
@@ -59,6 +61,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 
     res.cookie('access_token', result.accessToken, { ...COOKIE_OPTIONS, maxAge: 15 * 60 * 1000 });
     res.cookie('refresh_token', result.refreshToken, { ...COOKIE_OPTIONS, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    setCsrfToken(res);
 
     res.json({ success: true, data: { user: result.user } });
   } catch (error) {
@@ -124,4 +127,61 @@ export async function refresh(req: Request, res: Response): Promise<void> {
   res.cookie('refresh_token', newRefreshToken, { ...COOKIE_OPTIONS, maxAge: 7 * 24 * 60 * 60 * 1000 });
 
   res.json({ success: true, data: { user } });
+}
+
+export async function forgotPassword(req: Request, res: Response): Promise<void> {
+  try {
+    // Always return success to prevent user enumeration
+    const token = await authService.generatePasswordResetToken(req.body.email);
+
+    if (token) {
+      // In production: send email with reset link containing the token
+      // For dev: log token (NOT in production — security.no_sensitive_data_in_logs)
+      logger.debug('auth.forgot_password', 'Reset token generated (dev only)', {
+        email_hash: require('node:crypto').createHash('sha256').update(req.body.email).digest('hex').substring(0, 8),
+      });
+    }
+
+    // Generic response regardless of whether email exists
+    res.json({
+      success: true,
+      data: { message: 'If that email is registered, a reset link has been sent.' },
+    });
+  } catch (error) {
+    logger.error('auth.forgot_password', 'Forgot password error', { error: (error as Error).message });
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
+    });
+  }
+}
+
+export async function resetPassword(req: Request, res: Response): Promise<void> {
+  try {
+    const success = await authService.resetPassword(req.body.token, req.body.password);
+
+    if (!success) {
+      // Generic error — don't reveal if token was invalid vs expired
+      res.status(400).json({
+        success: false,
+        error: { code: 'RESET_FAILED', message: 'Password reset failed. Token may be invalid or expired.' },
+      });
+      return;
+    }
+
+    // Clear any existing auth cookies since all sessions were revoked
+    res.clearCookie('access_token', { httpOnly: true, secure: true, sameSite: 'strict' as const, path: '/' });
+    res.clearCookie('refresh_token', { httpOnly: true, secure: true, sameSite: 'strict' as const, path: '/' });
+
+    res.json({
+      success: true,
+      data: { message: 'Password has been reset. Please log in with your new password.' },
+    });
+  } catch (error) {
+    logger.error('auth.reset_password', 'Reset password error', { error: (error as Error).message });
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
+    });
+  }
 }

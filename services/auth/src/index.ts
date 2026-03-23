@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
+import { validateCsrf } from './middleware/csrf.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 
@@ -32,8 +33,10 @@ app.get('/readyz', (_req, res) => {
 });
 
 // Mount routes
+// Auth routes: CSRF not required on login/register (no pre-existing session)
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/users', userRoutes);
+// User routes: CSRF required on state-changing requests (POST/PATCH/DELETE)
+app.use('/api/v1/users', validateCsrf, userRoutes);
 
 app.listen(config.PORT, () => {
   logger.notice('auth.startup', `Auth service listening on port ${config.PORT}`, { port: config.PORT });

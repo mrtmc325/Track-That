@@ -3,24 +3,15 @@ import * as authService from '../services/auth.service.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Authenticate middleware sets req.user = { id, email } from JWT.
- * These controllers assume that middleware has already run.
+ * User profile controllers.
+ * requireAuth middleware runs before these — sets req.user = { id, email }.
+ * Per security.default_deny_and_explicit_allow — no manual token checks here.
  */
 
 export async function getProfile(req: Request, res: Response): Promise<void> {
-  const token = req.cookies?.access_token;
-  if (!token) {
-    res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
-    return;
-  }
+  const userId = (req as any).user.id;
+  const user = authService.getUserById(userId);
 
-  const decoded = authService.verifyAccessToken(token);
-  if (!decoded) {
-    res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } });
-    return;
-  }
-
-  const user = authService.getUserById(decoded.sub);
   if (!user) {
     res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
     return;
@@ -30,23 +21,14 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
 }
 
 export async function updateProfile(req: Request, res: Response): Promise<void> {
-  const token = req.cookies?.access_token;
-  if (!token) {
-    res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+  const userId = (req as any).user.id;
+
+  const updatedUser = authService.updateUser(userId, req.body);
+  if (!updatedUser) {
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
     return;
   }
 
-  const decoded = authService.verifyAccessToken(token);
-  if (!decoded) {
-    res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } });
-    return;
-  }
-
-  // For now, log the update request (DB integration in next sprint)
-  logger.info('user.update', 'Profile update requested', { user_id: decoded.sub });
-
-  res.json({
-    success: true,
-    data: { message: 'Profile update accepted', updates: req.body },
-  });
+  logger.info('user.update', 'Profile updated', { user_id: userId });
+  res.json({ success: true, data: updatedUser });
 }

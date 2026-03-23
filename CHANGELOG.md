@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-23 — Sprint 5: Auth Phase 2 Completion
+
+### Added
+- **Password Reset Flow** — forgot-password + reset-password endpoints
+  - Token generation with SHA-256 hash storage (1-hour expiry, single-use)
+  - Password reset revokes all existing sessions for security
+  - Generic responses to prevent user/email enumeration
+- **requireAuth Middleware** — centralized JWT auth enforcement
+  - Validates access_token cookie, sets `req.user = { id, email }`
+  - Replaces manual token checks in user controllers (DRY principle)
+- **CSRF Double-Submit Cookie** — defense-in-depth CSRF protection
+  - `setCsrfToken()` on login/register sets JS-readable cookie + header
+  - `validateCsrf` middleware enforces header/cookie match on POST/PATCH/DELETE
+  - Constant-time comparison via `crypto.timingSafeEqual`
+  - Applied to user routes; safe methods (GET/HEAD/OPTIONS) exempt
+- **Rate limiting expanded** — register and forgot-password now rate-limited
+- **Profile update** — `updateUser()` persists allowed fields, blocks injection of email/password_hash
+
+### Changed
+- User controller simplified — delegates auth to middleware, no more manual token checks
+- Logout route now requires authentication via requireAuth middleware
+
+### Tests (64 total, all passing)
+- 33 auth service tests (+11 new: 6 password reset, 5 updateUser)
+- 11 CSRF middleware tests (new)
+- 4 requireAuth middleware tests (new)
+- 6 rate limiter tests (unchanged)
+- 10 schema validation tests (unchanged)
+
 ## [0.4.0] - 2026-03-23 — Sprint 4: Auth Service + Core Domain Algorithms
 
 ### Added

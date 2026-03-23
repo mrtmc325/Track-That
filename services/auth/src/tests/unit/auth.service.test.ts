@@ -10,6 +10,9 @@ import {
   register,
   login,
   getUserById,
+  generatePasswordResetToken,
+  resetPassword,
+  updateUser,
   _resetStores,
 } from '../../services/auth.service.js';
 
@@ -181,6 +184,95 @@ describe('Auth Service', () => {
 
     it('returns null for unknown id', () => {
       expect(getUserById('nonexistent')).toBeNull();
+    });
+  });
+
+  describe('Password Reset', () => {
+    let userId: string;
+
+    beforeEach(async () => {
+      const reg = await register({ email: 'reset@example.com', password: 'OldPass1', display_name: 'Reset User' });
+      userId = reg.user.id;
+    });
+
+    it('generates a reset token for existing email', async () => {
+      const token = await generatePasswordResetToken('reset@example.com');
+      expect(token).not.toBeNull();
+      expect(token).toMatch(/^[0-9a-f]{8}-/i); // UUID format
+    });
+
+    it('returns null for non-existent email (no enumeration)', async () => {
+      const token = await generatePasswordResetToken('nobody@example.com');
+      expect(token).toBeNull();
+    });
+
+    it('resets password with valid token', async () => {
+      const token = await generatePasswordResetToken('reset@example.com');
+      const success = await resetPassword(token!, 'NewPass1');
+      expect(success).toBe(true);
+
+      // Old password should fail
+      const oldLogin = await login({ email: 'reset@example.com', password: 'OldPass1' });
+      expect(oldLogin).toBeNull();
+
+      // New password should work
+      const newLogin = await login({ email: 'reset@example.com', password: 'NewPass1' });
+      expect(newLogin).not.toBeNull();
+    });
+
+    it('token is single-use', async () => {
+      const token = await generatePasswordResetToken('reset@example.com');
+      await resetPassword(token!, 'NewPass1');
+      const secondUse = await resetPassword(token!, 'AnotherPass1');
+      expect(secondUse).toBe(false);
+    });
+
+    it('rejects invalid token', async () => {
+      const success = await resetPassword('00000000-0000-4000-8000-000000000000', 'NewPass1');
+      expect(success).toBe(false);
+    });
+
+    it('revokes all sessions after reset', async () => {
+      // Create a refresh token
+      const refreshTok = await generateRefreshToken(userId);
+      // Reset password
+      const resetTok = await generatePasswordResetToken('reset@example.com');
+      await resetPassword(resetTok!, 'NewPass1');
+      // Old refresh token should be revoked
+      const result = await verifyRefreshToken(refreshTok);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('updateUser', () => {
+    it('updates display name', async () => {
+      const reg = await register({ email: 'upd@example.com', password: 'SecurePass1', display_name: 'Old' });
+      const updated = updateUser(reg.user.id, { display_name: 'New Name' });
+      expect(updated).not.toBeNull();
+      expect(updated!.display_name).toBe('New Name');
+    });
+
+    it('updates search radius', async () => {
+      const reg = await register({ email: 'rad@example.com', password: 'SecurePass1', display_name: 'Rad' });
+      const updated = updateUser(reg.user.id, { search_radius_miles: 10 });
+      expect(updated!.search_radius_miles).toBe(10);
+    });
+
+    it('ignores non-allowed fields', async () => {
+      const reg = await register({ email: 'safe@example.com', password: 'SecurePass1', display_name: 'Safe' });
+      const updated = updateUser(reg.user.id, { email: 'hacked@evil.com', password_hash: 'evil' });
+      expect(updated!.email).toBe('safe@example.com');
+      expect((updated as any).password_hash).toBeUndefined();
+    });
+
+    it('returns null for unknown user', () => {
+      expect(updateUser('nonexistent', { display_name: 'X' })).toBeNull();
+    });
+
+    it('does not expose password hash', async () => {
+      const reg = await register({ email: 'nohash@example.com', password: 'SecurePass1', display_name: 'NoHash' });
+      const updated = updateUser(reg.user.id, { display_name: 'Updated' });
+      expect((updated as any).password_hash).toBeUndefined();
     });
   });
 });

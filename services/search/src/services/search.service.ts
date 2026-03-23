@@ -375,7 +375,27 @@ export async function searchWithCrawl(
   }
 
   // Run the normal search against whatever products we have (cached + newly crawled)
-  return search(params);
+  const result = search(params);
+
+  // If the dictionary check rejected the query but we DID have location data
+  // (meaning a crawl was attempted), return empty results instead of an error.
+  // The crawl may have found nothing, but that's not a "search failed" — it's
+  // "no products found at nearby stores for this query."
+  if ('error' in result && result.error.code === 'NO_DICTIONARY_MATCH' && params.lat !== undefined) {
+    return {
+      query: params.q,
+      total_results: 0,
+      results: [],
+      similar_items: [],
+      search_metadata: {
+        normalized_query: params.q,
+        fuzzy_applied: false,
+        response_time_ms: 0,
+      },
+    };
+  }
+
+  return result;
 }
 
 /**

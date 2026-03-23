@@ -89,6 +89,13 @@ const COMMON_WORDS = new Set([
   'tortilla', 'wrap', 'bun', 'bagel', 'muffin', 'donut', 'doughnut',
   'steak', 'ham', 'bacon', 'sausage', 'turkey', 'lamb', 'shrimp', 'salmon',
   'tuna', 'crab', 'lobster', 'tofu', 'tempeh',
+  'hamburger', 'burger', 'burgers', 'hotdog', 'hot', 'dog', 'pizza', 'pasta',
+  'noodle', 'noodles', 'taco', 'tacos', 'burrito', 'sandwich', 'sub', 'wrap',
+  'wing', 'wings', 'tender', 'tenders', 'nugget', 'nuggets', 'fries',
+  'ground', 'beef', 'pork', 'ribs', 'roast', 'chop', 'chops', 'filet', 'fillet',
+  'organic', 'natural', 'fresh', 'frozen', 'canned', 'dried',
+  'protein', 'bar', 'bars', 'shake', 'shakes', 'supplement', 'vitamin', 'vitamins',
+  'cleaning', 'laundry', 'dish', 'dishes', 'spray', 'wipe', 'wipes',
   // Clothing
   'shirt', 'pants', 'jeans', 'shorts', 'dress', 'skirt', 'blouse', 'sweater',
   'jacket', 'coat', 'hoodie', 'vest', 'suit', 'tie', 'scarf', 'hat', 'cap',

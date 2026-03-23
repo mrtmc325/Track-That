@@ -1,11 +1,13 @@
 // Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /**
- * Puppeteer Stealth Scraper — headless Chromium with anti-detection evasion.
- * Uses puppeteer-extra + stealth plugin to bypass bot detection on major retailers.
+ * Puppeteer Stealth Scraper — maximum anti-detection evasion.
  *
- * Timeouts: 30s page load, 15s selector wait — users accept longer waits to save money.
- * No robots.txt checks — this system does not honor robots.txt.
+ * Forges:
+ * 1. TLS fingerprint — Chromium flags to match real Chrome TLS behavior
+ * 2. Canvas/WebGL fingerprint — injects noise into canvas/WebGL APIs
+ * 3. Mouse movement — simulates human-like mouse paths and scrolling
+ * 4. All standard stealth: WebDriver, chrome runtime, permissions, plugins
  */
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
@@ -16,24 +18,17 @@ import { waitForRateLimit } from '../utils/rate-limiter.js';
 import { logger } from '../utils/logger.js';
 import { getPuppeteerProxyArgs, getRandomUserAgent } from '../utils/proxy-client.js';
 
-// Apply stealth plugin — evades headless detection, WebDriver checks, etc.
 puppeteerExtra.use(StealthPlugin());
 
 const CHROMIUM_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
-
-/** Page load timeout — 30s to allow slow JS-heavy sites to fully render */
 const PAGE_TIMEOUT = 30000;
-/** Selector wait timeout — 15s after page load to find product containers */
 const SELECTOR_TIMEOUT = 15000;
-/** Max products to extract per page */
 const MAX_PRODUCTS = 50;
 
 let browserInstance: Browser | null = null;
 
 async function getBrowser(): Promise<Browser> {
-  if (browserInstance && browserInstance.connected) {
-    return browserInstance;
-  }
+  if (browserInstance && browserInstance.connected) return browserInstance;
 
   browserInstance = await puppeteerExtra.launch({
     executablePath: CHROMIUM_PATH,
@@ -43,18 +38,29 @@ async function getBrowser(): Promise<Browser> {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
-      '--disable-extensions',
       '--no-first-run',
       '--disable-background-networking',
       '--disable-default-apps',
-      '--disable-blink-features=AutomationControlled', // Hide automation flag
+
+      // ─── TLS FINGERPRINT SPOOFING ───
+      // Match real Chrome TLS behavior — disable features that expose headless
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process', // Match real Chrome process model
+      '--enable-features=NetworkService,NetworkServiceInProcess', // Real Chrome network stack
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-ipc-flooding-protection',  // Prevents TLS timing differences
+      '--lang=en-US,en',
       '--window-size=1920,1080',
+
       ...getPuppeteerProxyArgs(),
     ],
     timeout: PAGE_TIMEOUT,
+    ignoreDefaultArgs: ['--enable-automation'], // Remove the automation flag entirely
   }) as Browser;
 
-  logger.info('puppeteer.stealth_launched', 'Stealth Chromium launched', {
+  logger.info('puppeteer.stealth_launched', 'Stealth Chromium launched with fingerprint spoofing', {
     pid: browserInstance.process()?.pid,
   });
 
@@ -65,8 +71,119 @@ export async function closeBrowser(): Promise<void> {
   if (browserInstance && browserInstance.connected) {
     await browserInstance.close();
     browserInstance = null;
-    logger.debug('puppeteer.browser_closed', 'Chromium closed');
   }
+}
+
+/**
+ * Inject Canvas/WebGL fingerprint noise.
+ * Adds subtle random perturbations to canvas/WebGL output so each session
+ * has a unique but realistic fingerprint. Prevents cross-session tracking.
+ */
+async function injectFingerprintNoise(page: Page): Promise<void> {
+  await page.evaluateOnNewDocument(function() {
+    // ─── CANVAS FINGERPRINT NOISE ───
+    // Intercept toDataURL and getImageData to add subtle noise
+    var origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function(type) {
+      var ctx = this.getContext('2d');
+      if (ctx) {
+        // Add invisible noise pixel to alter fingerprint hash
+        var imageData = ctx.getImageData(0, 0, 1, 1);
+        imageData.data[0] = imageData.data[0] ^ (Math.random() * 2 | 0);
+        ctx.putImageData(imageData, 0, 0);
+      }
+      return origToDataURL.apply(this, arguments as any);
+    };
+
+    // ─── WEBGL FINGERPRINT NOISE ───
+    var origGetParameter = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(param) {
+      // Spoof renderer and vendor strings
+      if (param === 37445) return 'Google Inc. (NVIDIA)';  // UNMASKED_VENDOR_WEBGL
+      if (param === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1080 Direct3D11 vs_5_0 ps_5_0)'; // UNMASKED_RENDERER_WEBGL
+      return origGetParameter.call(this, param);
+    };
+
+    // Also handle WebGL2
+    if (typeof WebGL2RenderingContext !== 'undefined') {
+      var origGetParameter2 = WebGL2RenderingContext.prototype.getParameter;
+      WebGL2RenderingContext.prototype.getParameter = function(param) {
+        if (param === 37445) return 'Google Inc. (NVIDIA)';
+        if (param === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1080 Direct3D11 vs_5_0 ps_5_0)';
+        return origGetParameter2.call(this, param);
+      };
+    }
+
+    // ─── NAVIGATOR OVERRIDES ───
+    Object.defineProperty(navigator, 'webdriver', { get: function() { return false; } });
+    Object.defineProperty(navigator, 'languages', { get: function() { return ['en-US', 'en']; } });
+    Object.defineProperty(navigator, 'plugins', { get: function() {
+      return [
+        { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+        { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+        { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
+      ];
+    }});
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: function() { return 8; } });
+    Object.defineProperty(navigator, 'deviceMemory', { get: function() { return 8; } });
+    Object.defineProperty(navigator, 'maxTouchPoints', { get: function() { return 0; } });
+
+    // ─── CHROME RUNTIME ───
+    (window as any).chrome = {
+      runtime: { id: undefined, connect: function() {}, sendMessage: function() {} },
+      loadTimes: function() { return {}; },
+      csi: function() { return {}; },
+    };
+
+    // ─── PERMISSIONS API ───
+    var origQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = function(desc) {
+      if ((desc as any).name === 'notifications') {
+        return Promise.resolve({ state: 'denied', onchange: null } as PermissionStatus);
+      }
+      return origQuery.call(window.navigator.permissions, desc);
+    };
+
+    // ─── SCREEN PROPERTIES ───
+    Object.defineProperty(screen, 'colorDepth', { get: function() { return 24; } });
+    Object.defineProperty(screen, 'pixelDepth', { get: function() { return 24; } });
+  });
+}
+
+/**
+ * Simulate human-like mouse movements and scrolling.
+ * Creates realistic interaction patterns that bot detectors look for.
+ */
+async function simulateHumanBehavior(page: Page): Promise<void> {
+  // Random initial mouse position
+  const startX = 200 + Math.random() * 800;
+  const startY = 200 + Math.random() * 400;
+  await page.mouse.move(startX, startY);
+
+  // Simulate natural mouse movement path (bezier curve approximation)
+  const steps = 5 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < steps; i++) {
+    const x = 100 + Math.random() * 1000;
+    const y = 100 + Math.random() * 600;
+    await page.mouse.move(x, y, { steps: 8 + Math.floor(Math.random() * 12) });
+    await new Promise(r => setTimeout(r, 50 + Math.random() * 150));
+  }
+
+  // Scroll down naturally (variable speed, not uniform)
+  const scrolls = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < scrolls; i++) {
+    const distance = 200 + Math.floor(Math.random() * 400);
+    await page.evaluate(function(d) {
+      window.scrollBy({ top: d, behavior: 'smooth' });
+    }, distance);
+    await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
+  }
+
+  // Scroll back up a bit (humans don't just scroll down monotonically)
+  await page.evaluate(function() {
+    window.scrollBy({ top: -150 - Math.random() * 200, behavior: 'smooth' });
+  });
+  await new Promise(r => setTimeout(r, 300 + Math.random() * 500));
 }
 
 export class PuppeteerScraperAdapter implements VendorAdapter {
@@ -84,45 +201,34 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
     const errors: string[] = [];
     const storeConfig = config as unknown as StoreScraperConfig & { query: string };
     const source = storeConfig.searchUrl.replace('{query}', encodeURIComponent(storeConfig.query || ''));
-
     let page: Page | null = null;
 
     try {
-      // Rate limiting (still respectful of server load)
       await waitForRateLimit(storeConfig.domain, 1);
 
-      // Launch stealth browser + new page
       const browser = await getBrowser();
       page = await browser.newPage() as Page;
 
-      // Randomized viewport to look like real users
-      const widths = [1366, 1440, 1536, 1920];
-      const heights = [768, 900, 864, 1080];
-      const idx = Math.floor(Math.random() * widths.length);
-      await page.setViewport({ width: widths[idx], height: heights[idx] });
+      // Randomized viewport
+      const viewports = [
+        { width: 1366, height: 768 }, { width: 1440, height: 900 },
+        { width: 1536, height: 864 }, { width: 1920, height: 1080 },
+        { width: 1680, height: 1050 }, { width: 2560, height: 1440 },
+      ];
+      const vp = viewports[Math.floor(Math.random() * viewports.length)];
+      await page.setViewport(vp);
 
-      // Randomized user agent from proxy module
+      // Random user agent
       await page.setUserAgent(getRandomUserAgent());
 
-      // Set realistic browser properties
-      await page.evaluateOnNewDocument(() => {
-        // Override navigator.webdriver to false
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        // Override chrome runtime
-        (window as any).chrome = { runtime: {} };
-        // Override permissions
-        const originalQuery = window.navigator.permissions.query;
-        window.navigator.permissions.query = (parameters: any) =>
-          parameters.name === 'notifications'
-            ? Promise.resolve({ state: 'denied' } as PermissionStatus)
-            : originalQuery(parameters);
-      });
+      // Inject all fingerprint forgeries BEFORE navigation
+      await injectFingerprintNoise(page);
 
-      // Block heavy resources to speed up load (keep JS for rendering)
+      // Block heavy resources but keep JS + CSS (some sites check CSS rendering)
       await page.setRequestInterception(true);
       page.on('request', (req) => {
         const type = req.resourceType();
-        if (['image', 'stylesheet', 'font', 'media'].includes(type)) {
+        if (['image', 'font', 'media'].includes(type)) {
           req.abort();
         } else {
           req.continue();
@@ -130,31 +236,29 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
       });
 
       const renderStart = Date.now();
-
-      // Navigate with 30s timeout
-      logger.info('puppeteer.navigating', `Navigating to ${storeConfig.domain}`, {
-        domain: storeConfig.domain,
-        timeout: PAGE_TIMEOUT,
+      logger.info('puppeteer.navigating', `Navigating to ${storeConfig.domain} (stealth+fingerprint)`, {
+        domain: storeConfig.domain, viewport: `${vp.width}x${vp.height}`,
       });
 
-      await page.goto(source, {
-        waitUntil: 'networkidle2',
-        timeout: PAGE_TIMEOUT,
-      });
+      // Navigate
+      await page.goto(source, { waitUntil: 'networkidle2', timeout: PAGE_TIMEOUT });
 
-      // Wait for product container with 15s timeout
+      // Simulate human behavior BEFORE extraction (triggers lazy-load, passes behavior checks)
+      await simulateHumanBehavior(page);
+
+      // Wait for products
       const selectors = storeConfig.selectors;
       try {
         await page.waitForSelector(selectors.productContainer, { timeout: SELECTOR_TIMEOUT });
       } catch {
-        // Try alternative: wait a bit more and check for any content
         await new Promise(r => setTimeout(r, 3000));
+        // Scroll more — some sites lazy-load on scroll
+        await page.evaluate(function() { window.scrollTo(0, document.body.scrollHeight / 2); });
+        await new Promise(r => setTimeout(r, 2000));
         const hasContent = await page.$(selectors.productContainer);
         if (!hasContent) {
           logger.warning('puppeteer.no_products', `Products not found on ${storeConfig.domain}`, {
-            domain: storeConfig.domain,
-            selector: selectors.productContainer,
-            renderTime: Date.now() - renderStart,
+            domain: storeConfig.domain, selector: selectors.productContainer, renderTime: Date.now() - renderStart,
           });
           return { success: false, products: [], errors: ['Product container not found'], extraction_time_ms: Date.now() - startTime, source };
         }
@@ -162,34 +266,35 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
 
       const renderTime = Date.now() - renderStart;
 
-      // Extract products using page.evaluate (avoids tsx serialization issues with $$eval)
-      const extractedProducts = await page.evaluate(function(containerSel, nameSel, priceSel, origPriceSel, imgSel, brandSel, maxItems) {
-        var cards = document.querySelectorAll(containerSel);
-        var results = [];
-        for (var i = 0; i < cards.length && i < maxItems; i++) {
-          var card = cards[i];
-          var nameNode = card.querySelector(nameSel);
-          var priceNode = card.querySelector(priceSel);
-          var name = nameNode ? nameNode.textContent.trim() : '';
-          var price = priceNode ? priceNode.textContent.trim() : '';
-          if (!name || !price) continue;
-          var origNode = origPriceSel ? card.querySelector(origPriceSel) : null;
-          var imgNode = imgSel ? card.querySelector(imgSel) : null;
-          var brandNode = brandSel ? card.querySelector(brandSel) : null;
-          results.push({
-            raw_name: name,
-            raw_price: price,
-            original_price: origNode ? origNode.textContent.trim() : '',
-            image_url: imgNode ? (imgNode.getAttribute('src') || imgNode.getAttribute('data-src') || '') : '',
-            brand: brandNode ? brandNode.textContent.trim() : '',
-          });
-        }
-        return results;
-      }, selectors.productContainer, selectors.productName, selectors.price,
-         selectors.originalPrice || '', selectors.imageUrl || '', selectors.brand || '', MAX_PRODUCTS
+      // Extract using page.evaluate (avoids tsx serialization issues)
+      const extractedProducts = await page.evaluate(
+        function(containerSel, nameSel, priceSel, origPriceSel, imgSel, brandSel, maxItems) {
+          var cards = document.querySelectorAll(containerSel);
+          var results = [];
+          for (var i = 0; i < cards.length && i < maxItems; i++) {
+            var card = cards[i];
+            var nameNode = card.querySelector(nameSel);
+            var priceNode = card.querySelector(priceSel);
+            var name = nameNode ? nameNode.textContent.trim() : '';
+            var price = priceNode ? priceNode.textContent.trim() : '';
+            if (!name || !price) continue;
+            var origNode = origPriceSel ? card.querySelector(origPriceSel) : null;
+            var imgNode = imgSel ? card.querySelector(imgSel) : null;
+            var brandNode = brandSel ? card.querySelector(brandSel) : null;
+            results.push({
+              raw_name: name,
+              raw_price: price,
+              original_price: origNode ? origNode.textContent.trim() : '',
+              image_url: imgNode ? (imgNode.getAttribute('src') || imgNode.getAttribute('data-src') || '') : '',
+              brand: brandNode ? brandNode.textContent.trim() : '',
+            });
+          }
+          return results;
+        },
+        selectors.productContainer, selectors.productName, selectors.price,
+        selectors.originalPrice || '', selectors.imageUrl || '', selectors.brand || '', MAX_PRODUCTS,
       ) as { raw_name: string; raw_price: string; original_price: string; image_url: string; brand: string }[];
 
-      // Convert to RawProduct
       for (const extracted of extractedProducts) {
         if (!extracted.raw_name || !extracted.raw_price) continue;
         products.push({
@@ -206,10 +311,8 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
       }
 
       logger.notice('puppeteer.extract', `Extracted ${products.length} products from ${storeConfig.domain}`, {
-        domain: storeConfig.domain,
-        products_found: products.length,
-        render_time_ms: renderTime,
-        total_time_ms: Date.now() - startTime,
+        domain: storeConfig.domain, products_found: products.length,
+        render_time_ms: renderTime, total_time_ms: Date.now() - startTime,
       });
 
       return { success: products.length > 0, products, errors, extraction_time_ms: Date.now() - startTime, source };

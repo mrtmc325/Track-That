@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
+import searchRoutes from './routes/search.routes.js';
 
 const app = express();
 
@@ -25,14 +26,13 @@ app.use((req, res, next) => {
 // Health checks
 app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
 app.get('/readyz', (_req, res) => {
-  // TODO: Add dependency checks (DB, Elasticsearch) when connected
+  // TODO: Add Elasticsearch health check when connected
   res.json({ status: 'ok', checks: [] });
 });
 
-// TODO: Mount search routes
-// app.use('/api/v1/search', searchRoutes);
-// app.use('/api/v1/products', productRoutes);
-// app.use('/api/v1/categories', categoryRoutes);
+// Mount routes — auth middleware would be applied at gateway level
+app.use('/api/v1/search', searchRoutes);
+app.use('/api/v1', searchRoutes); // Also mount products/:id and categories at /api/v1/
 
 app.listen(config.PORT, () => {
   logger.notice('search.startup', `Search service listening on port ${config.PORT}`, { port: config.PORT });

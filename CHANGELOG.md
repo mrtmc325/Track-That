@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-23 — Sprint 6: Search Service (Phase 3)
+
+### Added
+- **Query Processor** (services/search/src/services/query-processor.ts)
+  - Input validation: 2-200 chars, XSS/SQL injection pattern rejection, pure numeric/special char rejection
+  - Normalization: lowercase, strip HTML, remove special chars (preserve hyphens/apostrophes), collapse spaces
+  - Abbreviation expansion: oz→ounce, lb→pound, org→organic, etc. (16 mappings)
+  - Dictionary check: ~400 common English words (grocery/clothing/household), Levenshtein fuzzy match (distance ≤2)
+  - Synonym expansion: 22 synonym groups (soda↔pop↔soft drink, zucchini↔courgette, etc.)
+  - Full pipeline returns discriminated union: `{ result: ProcessedQuery }` or `{ error }`
+
+- **Search Service** (services/search/src/services/search.service.ts)
+  - In-memory product store with Elasticsearch-compatible interface
+  - `search()`: full pipeline → score → category filter → radius filter → paginate → similar items fallback
+  - `suggest()`: prefix + substring autocomplete (configurable limit)
+  - `getProduct()`: single product lookup by ID
+  - `getCategories()`: aggregated category list with counts
+  - `indexProduct()` / `removeProduct()`: product management for vendor adapter
+  - Haversine distance calculation for store proximity
+  - Scoring: exact name (100) > name contains (50) > brand (30) > category (20) > description (10)
+
+- **Search API Routes**
+  - `GET /api/v1/search?q=&lat=&lng=&radius=&category=&page=` — Full search with Zod validation
+  - `GET /api/v1/search/suggest?q=` — Autocomplete
+  - `GET /api/v1/products/:id` — Product detail
+  - `GET /api/v1/categories` — Category listing
+
+- **Zod Schemas** for all search endpoints with coerced numerics
+
+### Tests (55 new, all passing)
+- 34 query processor tests (validation, normalization, dictionary, synonyms, Levenshtein, full pipeline)
+- 21 search service tests (search, suggest, getProduct, getCategories, radius filter, pagination, synonyms)
+
 ## [0.5.0] - 2026-03-23 — Sprint 5: Auth Phase 2 Completion
 
 ### Added

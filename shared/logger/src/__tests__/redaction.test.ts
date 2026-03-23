@@ -44,4 +44,27 @@ describe('redactSensitiveFields', () => {
   it('handles empty objects', () => {
     expect(redactSensitiveFields({})).toEqual({});
   });
+
+  it('redacts nested sensitive fields (deep traversal)', () => {
+    const input = {
+      user: { password: 'secret', name: 'John' },
+      payment: { card_number: '4242', amount: 10 },
+    };
+    const result = redactSensitiveFields(input);
+    expect((result.user as any).password).toBe('[REDACTED]');
+    expect((result.user as any).name).toBe('John');
+    expect((result.payment as any).card_number).toBe('[REDACTED]');
+    expect((result.payment as any).amount).toBe(10);
+  });
+
+  it('redacts fields with sensitive substrings', () => {
+    const result = redactSensitiveFields({
+      user_password_hash: 'bcrypt$...',
+      refresh_token_id: 'uuid',
+      api_secret_key: 'abc',
+    });
+    expect(result.user_password_hash).toBe('[REDACTED]');
+    expect(result.refresh_token_id).toBe('[REDACTED]');
+    expect(result.api_secret_key).toBe('[REDACTED]');
+  });
 });

@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-23 — Sprint 13: Observability, Security & Infrastructure (Phase 10)
+
+### Added
+- **Security Headers Middleware** (shared/middleware/src/security-headers.ts)
+  - CSP: `default-src 'self'`, `script-src 'self'`, `frame-ancestors 'none'`, OSM tiles, Stripe API
+  - HSTS: 1-year max-age with includeSubDomains
+  - X-Frame-Options: DENY, X-Content-Type-Options: nosniff, X-XSS-Protection: 0
+  - Permissions-Policy: geolocation=(self), camera=(), microphone=()
+  - Cache-Control: no-store for sensitive responses
+
+- **Threat Detection & Input Sanitization** (shared/middleware/src/sanitize.ts)
+  - `detectThreats()`: SQL injection (6 patterns), XSS (7), command injection (3), path traversal (6)
+  - `isAllowedDomain()`: SSRF prevention via HTTPS-only domain allowlist
+  - `sanitizePath()`: path traversal blocking within allowed base directory
+  - `sanitizeForLog()`: control char stripping + length limit for safe log output
+  - `sanitizeBody()`: Express middleware for recursive HTML/XSS stripping (backward compat)
+  - `stripHtml()`: simple HTML tag removal utility
+
+- **Threat Model Document** (docs/THREAT_MODEL.md)
+  - 5 trust boundaries documented (Internet→DMZ→App→Data→External)
+  - 10 STRIDE threats (T1-T10) with severity, attack description, mitigations, and test evidence
+  - Covers SQL injection, XSS, CSRF, credential stuffing, SSRF, webhook spoofing, JWT escalation, PII in logs
+
+### Enhanced
+- **Log Redaction** (shared/logger/src/__tests__/redaction.test.ts)
+  - Added 2 new tests: nested object deep traversal + substring key matching
+  - Total: 7 redaction tests covering all 10 sensitive field patterns
+
+### Tests (35 new, all passing across shared libs)
+- 11 security headers tests (CSP, HSTS, X-Frame, CORS sources, Permissions-Policy)
+- 24 threat detection tests (SQL, XSS, cmd injection, path traversal, SSRF, safe inputs)
+- 6 sanitizeBody tests (HTML strip, js: removal, nested objects, arrays) — existing
+- 7 redaction tests — enhanced from 5
+
 ## [1.2.0] - 2026-03-23 — Sprint 12: Ad & Coupon Ingestion Pipeline (Phase 9)
 
 ### Added

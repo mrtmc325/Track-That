@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
+import authRoutes from './routes/auth.routes.js';
+import userRoutes from './routes/user.routes.js';
 
 const app = express();
 
@@ -29,9 +31,9 @@ app.get('/readyz', (_req, res) => {
   res.json({ status: 'ok', checks: [] });
 });
 
-// TODO: Mount auth routes
-// app.use('/api/v1/auth', authRoutes);
-// app.use('/api/v1/users', userRoutes);
+// Mount routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/users', userRoutes);
 
 app.listen(config.PORT, () => {
   logger.notice('auth.startup', `Auth service listening on port ${config.PORT}`, { port: config.PORT });

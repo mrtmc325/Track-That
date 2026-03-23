@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-23 — Sprint 4: Auth Service + Core Domain Algorithms
+
+### Added
+- **Auth Service** — full implementation (services/auth/)
+  - Routes: POST /register, /login, /logout, /refresh + GET/PATCH /users/me
+  - bcrypt password hashing (cost factor 12)
+  - JWT access tokens (RS256 with HS256 dev fallback, 15-min expiry)
+  - Opaque refresh tokens (UUID, SHA-256 hashed, 7-day expiry, single-use rotation)
+  - Rate limiter: 5 failed logins per 15-min window per IP+email, lockout after 10
+  - Zod validation schemas for all endpoints (email normalization, password strength)
+  - Generic error responses to prevent user enumeration
+  - HttpOnly + Secure + SameSite=Strict auth cookies
+
+- **Deal Scoring Algorithm** (services/price-engine/)
+  - `scoreListings()`: composite score = 45% price + 25% distance + 10% freshness + 10% rating + 10% coupon
+  - `calculateEffectivePrice()`: applies max(absolute, percentage) coupon discount
+  - Configurable weights, normalized 0-1 scores, sorted results
+
+- **Haversine Distance** (services/geo/)
+  - `haversineDistance()`: straight-line distance in miles between coordinates
+  - `findStoresWithinRadius()`: filter + sort stores by distance from user
+  - `encodeGeohash()`: variable-precision geohash for Redis cache bucketing
+
+### Tests (81 new, all passing)
+- Auth service: 38 tests (password hashing, JWT, refresh rotation, registration, login, rate limiting, schemas)
+- Price engine: 12 scoring tests + 13 staleness tests
+- Geo service: 12 distance tests + 6 privacy tests
+
 ## [0.3.0] - 2026-03-22 — Sprint 3 1.7: Risk Mitigations
 
 ### Added

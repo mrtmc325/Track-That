@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-03-23 — Sprint 15: API Gateway & Service Mesh (Phase 12)
+
+### Added
+- **5-Tier Rate Limiting** (gateway/dynamic/middlewares.yml)
+  - Tier 1 Anonymous: 30 req/min per IP (login, register)
+  - Tier 2 Authenticated: 120 req/min per user (standard API)
+  - Tier 3 Search: 60 req/min per user (prevent scraping)
+  - Tier 4 Checkout: 10 req/min per user (payment protection)
+  - Tier 5 Webhook: 300 req/min per provider IP (delivery webhooks)
+
+- **Delivery Webhook Router** — separate route at priority 10 with webhook rate limit (no CORS)
+- **Health Aggregation Route** — `GET /api/v1/health` at priority 20, no rate limit, no auth
+- **Request ID Injection** — `request-id` middleware adds X-Request-ID to all routes
+
+### Changed
+- **CORS Origins** — added `https://trackhat.local` and `https://localhost:5173` per spec
+- **CSP Header** — updated to match Phase 10 spec exactly (OSM tiles + Stripe API)
+- **TLS Config** — added TLS 1.2/1.3 minimum, ECDHE cipher suites only, SNI strict mode
+- **Dev Certs** — SAN now includes `trackhat.local`, `*.trackhat.local`, and `127.0.0.1`
+- **All routes** now include `request-id` middleware for distributed tracing
+- **Price/Delivery/Ads/Geo routers** now use `rate-limit-authenticated` (120/min) instead of no rate limit
+
+### Route → Rate Limit Mapping (per spec 12.2)
+| Route | Rate Limit Tier | Limit |
+|-------|----------------|-------|
+| `/api/v1/auth/*` | anonymous | 30/min |
+| `/api/v1/search/*`, `/products/*`, `/categories` | search | 60/min |
+| `/api/v1/prices/*` | authenticated | 120/min |
+| `/api/v1/cart/*`, `/checkout/*`, `/orders/*` | checkout | 10/min |
+| `/api/v1/delivery/webhook/*` | webhook | 300/min |
+| `/api/v1/delivery/*` (non-webhook) | authenticated | 120/min |
+| `/api/v1/coupons/*`, `/deals/*`, `/flyers/*` | authenticated | 120/min |
+| `/api/v1/geo/*` | authenticated | 120/min |
+| `/api/v1/health` | none | unlimited |
+| `/*` (frontend) | none | unlimited |
+
 ## [1.4.0] - 2026-03-23 — Sprint 14: Data Layer & Storage Architecture (Phase 11)
 
 ### Added

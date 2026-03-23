@@ -8,3 +8,15 @@ tls:
   certificates:
     - certFile: /etc/traefik/certs/cert.pem
       keyFile: /etc/traefik/certs/key.pem
+
+  options:
+    default:
+      # Per security.encryption_in_transit_and_at_rest — disable insecure protocols
+      minVersion: VersionTLS12
+      maxVersion: VersionTLS13
+      cipherSuites:
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+      sniStrict: true

@@ -1,64 +1,103 @@
 http:
   routers:
+    # ─── Auth: anonymous rate limit (login/register are public) ───
     auth-router:
       rule: "PathPrefix(`/api/v1/auth`)"
       service: auth-service
       middlewares:
-        - rate-limit-auth
+        - request-id
+        - rate-limit-anonymous
         - security-headers
         - cors
       tls: {}
 
+    # ─── Search: search-specific rate limit (prevent scraping) ───
     search-router:
       rule: "PathPrefix(`/api/v1/search`) || PathPrefix(`/api/v1/products`) || PathPrefix(`/api/v1/categories`)"
       service: search-service
       middlewares:
+        - request-id
         - rate-limit-search
         - security-headers
         - cors
       tls: {}
 
+    # ─── Prices: authenticated rate limit ───
     price-router:
       rule: "PathPrefix(`/api/v1/prices`)"
       service: price-service
       middlewares:
+        - request-id
+        - rate-limit-authenticated
         - security-headers
         - cors
       tls: {}
 
+    # ─── Cart/Checkout/Orders: checkout rate limit (strict for payment) ───
     cart-router:
       rule: "PathPrefix(`/api/v1/cart`) || PathPrefix(`/api/v1/checkout`) || PathPrefix(`/api/v1/orders`)"
       service: cart-service
       middlewares:
+        - request-id
         - rate-limit-checkout
         - security-headers
         - cors
       tls: {}
 
+    # ─── Delivery webhooks: webhook rate limit (high throughput, per provider IP) ───
+    delivery-webhook-router:
+      rule: "PathPrefix(`/api/v1/delivery/webhook`)"
+      service: delivery-service
+      priority: 10
+      middlewares:
+        - request-id
+        - rate-limit-webhook
+        - security-headers
+      tls: {}
+
+    # ─── Delivery API (non-webhook): authenticated rate limit ───
     delivery-router:
       rule: "PathPrefix(`/api/v1/delivery`)"
       service: delivery-service
       middlewares:
+        - request-id
+        - rate-limit-authenticated
         - security-headers
         - cors
       tls: {}
 
+    # ─── Ads/Coupons/Deals: authenticated rate limit ───
     ads-router:
       rule: "PathPrefix(`/api/v1/coupons`) || PathPrefix(`/api/v1/deals`) || PathPrefix(`/api/v1/flyers`)"
       service: ads-service
       middlewares:
+        - request-id
+        - rate-limit-authenticated
         - security-headers
         - cors
       tls: {}
 
+    # ─── Geo: authenticated rate limit ───
     geo-router:
       rule: "PathPrefix(`/api/v1/geo`)"
       service: geo-service
       middlewares:
+        - request-id
+        - rate-limit-authenticated
         - security-headers
         - cors
       tls: {}
 
+    # ─── Health aggregation: no rate limit, no auth ───
+    health-router:
+      rule: "Path(`/api/v1/health`)"
+      service: auth-service
+      priority: 20
+      middlewares:
+        - request-id
+      tls: {}
+
+    # ─── Frontend SPA: catch-all at lowest priority ───
     frontend-router:
       rule: "PathPrefix(`/`)"
       service: frontend

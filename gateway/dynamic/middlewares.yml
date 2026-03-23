@@ -2,7 +2,7 @@ http:
   middlewares:
     security-headers:
       headers:
-        contentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        contentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self' https://api.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         contentTypeNosniff: true
         frameDeny: true
         stsSeconds: 31536000
@@ -17,7 +17,9 @@ http:
     cors:
       headers:
         accessControlAllowOriginList:
+          - "https://trackhat.local"
           - "https://localhost"
+          - "https://localhost:5173"
         accessControlAllowMethods:
           - "GET"
           - "POST"
@@ -32,20 +34,66 @@ http:
         accessControlAllowCredentials: true
         accessControlMaxAge: 7200
 
-    rate-limit-auth:
+    # X-Request-ID injection for distributed tracing
+    # Per 12.4: every request gets a unique UUID at the gateway
+    request-id:
+      headers:
+        customRequestHeaders:
+          X-Request-ID: "{{.RequestID}}"
+        customResponseHeaders:
+          X-Request-ID: "{{.RequestID}}"
+
+    # ─── Rate Limiting Tiers (Phase 12 Section 12.2) ───
+
+    # Tier 1: Anonymous — 30 req/min per IP
+    # Applies to: public endpoints (login, register)
+    rate-limit-anonymous:
       rateLimit:
         average: 30
         burst: 5
         period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
 
+    # Tier 2: Authenticated — 120 req/min per user
+    # Applies to: standard API access
+    rate-limit-authenticated:
+      rateLimit:
+        average: 120
+        burst: 20
+        period: 1m
+
+    # Tier 3: Search — 60 req/min per user
+    # Applies to: search endpoints (prevent scraping)
     rate-limit-search:
       rateLimit:
         average: 60
         burst: 10
         period: 1m
 
+    # Tier 4: Checkout — 10 req/min per user
+    # Applies to: payment endpoints
     rate-limit-checkout:
       rateLimit:
         average: 10
         burst: 3
+        period: 1m
+
+    # Tier 5: Webhook — 300 req/min per provider IP
+    # Applies to: delivery webhook endpoints
+    rate-limit-webhook:
+      rateLimit:
+        average: 300
+        burst: 50
+        period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # Backward compatibility aliases
+    rate-limit-auth:
+      rateLimit:
+        average: 30
+        burst: 5
         period: 1m

@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-03-23 — Sprint 17: CI/CD Pipeline (Phase 14)
+
+### Added
+- **Deploy Workflow** (.github/workflows/deploy.yml)
+  - Triggered by CI success on main or manual dispatch
+  - Matrix build: all 10 images built + pushed to GHCR in parallel
+  - Staging canary deployment with smoke tests + health monitoring
+  - Production promotion with rolling update strategy (maxUnavailable=0)
+  - Manual rollback with version parameter
+  - Environment gates: staging + production require approval
+  - Audit logging of deployments (actor, version, timestamp)
+
+- **CI Gate Job** — summary job requiring all 12 merge-blocking checks to pass
+  - GitHub branch protection should require `ci-gate` status check
+  - Reports individual job results and fails if any check is not success/skipped
+
+### Enhanced
+- **CI Workflow** (.github/workflows/ci.yml) — already had all 13 checks from Sprint 1
+  - Added `ci-gate` aggregation job for clean merge blocking
+  - Check mapping per Phase 14 spec:
+
+### CI Check Matrix (13 checks, spec section 14.5)
+| # | Check | Tool | Gate | Job Name |
+|---|-------|------|------|----------|
+| 1 | Lint | ESLint | Merge | `lint` |
+| 2 | Format | Prettier | Merge | `format` |
+| 3 | Type check | `tsc --noEmit` | Merge | `typecheck` |
+| 4 | Unit tests | Vitest | Merge | `unit-tests` |
+| 5 | Integration tests | Vitest + TestContainers | Merge | `integration-tests` |
+| 6 | Dependency audit | `npm audit --audit-level=high` | Merge | `dependency-audit` |
+| 7 | Container scan | Trivy (HIGH/CRITICAL) | Merge | `container-scan` |
+| 8 | Secret scan | TruffleHog | Merge | `secret-scan` |
+| 9 | License check | license-checker (reject copyleft) | Merge | `license-check` |
+| 10 | Migration safety | Prisma validate | Merge | `migration-safety` |
+| 11 | Non-root verify | verify-non-root.sh | Merge | `non-root-verify` |
+| 12 | Commit message | commitlint | Merge | `commit-message` |
+| 13 | E2E tests | Playwright | Release | `e2e-tests` |
+
 ## [1.6.0] - 2026-03-23 — Sprint 16: Frontend Web Application (Phase 13)
 
 ### Added

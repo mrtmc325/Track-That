@@ -179,7 +179,7 @@ jobs:
       - run: npm ci --workspaces --include-workspace-root
       - run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
 
-  # --- Release Blocker (check 13) ---
+  # --- Release Blockers (checks 13) ---
   e2e-tests:
     name: "Check 13: E2E Tests (Playwright)"
     runs-on: ubuntu-latest
@@ -193,3 +193,37 @@ jobs:
       - run: npm run test:e2e --workspace=frontend
         env:
           CI: true
+
+  # ─── Summary Gate ───
+  # This job gates PR merges — all merge-blocking checks must pass.
+  # GitHub branch protection should require this job.
+  ci-gate:
+    name: "CI Gate (all merge checks)"
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - lint
+      - format
+      - typecheck
+      - unit-tests
+      - integration-tests
+      - dependency-audit
+      - container-scan
+      - secret-scan
+      - license-check
+      - migration-safety
+      - non-root-verify
+      - commit-message
+    steps:
+      - name: Check all merge-blocking jobs
+        run: |
+          echo "Checking merge gate status..."
+          RESULTS="${{ needs.lint.result }} ${{ needs.format.result }} ${{ needs.typecheck.result }} ${{ needs.unit-tests.result }} ${{ needs.integration-tests.result }} ${{ needs.dependency-audit.result }} ${{ needs.container-scan.result }} ${{ needs.secret-scan.result }} ${{ needs.license-check.result }} ${{ needs.migration-safety.result }} ${{ needs.non-root-verify.result }}"
+          echo "Results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "FAIL: At least one merge-blocking check did not pass: $result"
+              exit 1
+            fi
+          done
+          echo "All merge-blocking checks passed"

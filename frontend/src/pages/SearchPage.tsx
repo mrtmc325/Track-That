@@ -15,7 +15,7 @@ export default function SearchPage() {
   const { lat, lng, radius } = useGeoStore();
 
   const { data, isLoading, error } = useSearch({
-    q: query || (category ?? ''),
+    q: query,
     lat: lat ?? undefined,
     lng: lng ?? undefined,
     radius,

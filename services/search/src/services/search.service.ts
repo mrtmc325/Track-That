@@ -178,9 +178,15 @@ function toResultItem(product: ProductDocument, userLat?: number, userLng?: numb
 /**
  * Execute a search query.
  * Full pipeline: validate → normalize → search → rank → return.
+ * Supports category-only browsing (no query required).
  */
 export function search(params: SearchParams): SearchResponse | { error: { code: string; message: string } } {
   const startTime = Date.now();
+
+  // Category-only browse: skip query processing, return all products in category
+  if ((!params.q || params.q.trim().length < 2) && params.category) {
+    return browseCategoryOnly(params, startTime);
+  }
 
   // Process query through pipeline
   const processed = processQuery(params.q);
@@ -262,6 +268,56 @@ export function search(params: SearchParams): SearchResponse | { error: { code: 
     search_metadata: {
       normalized_query: query.normalized,
       fuzzy_applied: query.fuzzyRequired,
+      response_time_ms: responseTimeMs,
+    },
+  };
+}
+
+/**
+ * Browse products by category only (no search query).
+ * Returns all products matching the category, sorted by name.
+ */
+function browseCategoryOnly(params: SearchParams, startTime: number): SearchResponse {
+  const page = params.page || 1;
+  const pageSize = Math.min(params.pageSize || 20, 50);
+
+  const matched: { product: ProductDocument; score: number }[] = [];
+  for (const product of products.values()) {
+    if (params.category && product.category.toLowerCase() !== params.category.toLowerCase()) continue;
+
+    // Distance filter
+    if (params.lat !== undefined && params.lng !== undefined && params.radius) {
+      const hasNearbyStore = product.store_listings.some(sl =>
+        haversineDistance(params.lat!, params.lng!, sl.location.lat, sl.location.lon) <= params.radius!
+      );
+      if (!hasNearbyStore) continue;
+    }
+
+    matched.push({ product, score: 1 });
+  }
+
+  matched.sort((a, b) => a.product.canonical_name.localeCompare(b.product.canonical_name));
+
+  const offset = (page - 1) * pageSize;
+  const pageResults = matched.slice(offset, offset + pageSize);
+  const results = pageResults.map(m => toResultItem(m.product, params.lat, params.lng));
+
+  const responseTimeMs = Date.now() - startTime;
+
+  logger.info('search.browse', 'Category browse completed', {
+    category: params.category,
+    results_count: matched.length,
+    response_time_ms: responseTimeMs,
+  });
+
+  return {
+    query: params.category || '',
+    total_results: matched.length,
+    results,
+    similar_items: [],
+    search_metadata: {
+      normalized_query: params.category || '',
+      fuzzy_applied: false,
       response_time_ms: responseTimeMs,
     },
   };

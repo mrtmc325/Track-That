@@ -7,7 +7,7 @@ export function useSearch(params: SearchParams) {
   return useQuery({
     queryKey: ['search', params],
     queryFn: () => searchProducts(params),
-    enabled: (!!params.q && params.q.length >= 2) || !!params.category,
+    enabled: (!!params.q && params.q.length >= 2) || (!!params.category && params.category.length > 0),
   });
 }
 

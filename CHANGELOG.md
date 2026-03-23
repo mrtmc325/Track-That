@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-23 — Sprint 7: Vendor Adapter (Phase 4)
+
+### Added
+- **Adapter Plugin Interface** (services/vendor-adapter/src/adapters/)
+  - `VendorAdapter` interface with `extract()` and `validateConfig()` contract
+  - `RawProduct` / `AdapterResult` types for cross-adapter data exchange
+  - `CsvAdapter` — parses CSV feeds with quoted-field handling, column mapping, custom delimiters
+
+- **Data Normalizer** (services/vendor-adapter/src/pipeline/normalizer.ts)
+  - Product name: strip 15 store-brand prefixes, extract size/weight via regex, title-case output
+  - Price: currency symbol stripping, USD rounding to 2dp, anomaly flags (negative, zero, >$10K, unparseable)
+  - HTML/control-char sanitization on all text fields, 1000-char limit
+  - Confidence scoring for name extraction quality
+
+- **Deduplication Engine** (services/vendor-adapter/src/pipeline/deduplicator.ts)
+  - Sørensen–Dice bigram coefficient for fuzzy product name matching
+  - Brand bonus (+0.10) and category bonus (+0.05) on similarity score
+  - Thresholds: auto-match ≥0.85, human review 0.60-0.85, new product <0.60
+  - In-memory catalog with addToCatalog/removeFromCatalog for pipeline integration
+
+- **Store Manager** (services/vendor-adapter/src/pipeline/store-manager.ts)
+  - Full onboarding state machine: discovered → adapter_configured → test_scrape → validated → active → paused/inactive
+  - Valid transition enforcement (rejects invalid state changes, terminal state for inactive)
+  - `registerStore`, `transitionStore`, `configureAdapter`, `recordScrapeSuccess`
+  - Store listing with status/type filtering
+
+### Tests (69 new, all passing)
+- 24 normalizer tests (name normalization, price normalization, full pipeline)
+- 13 deduplicator tests (Dice coefficient, match/review/new thresholds, brand/category bonuses)
+- 19 store manager tests (state machine transitions, adapter config, scrape recording, listing/filtering)
+- 13 CSV adapter tests (parsing, validation, quoted fields, delimiters, error handling)
+
 ## [0.6.0] - 2026-03-23 — Sprint 6: Search Service (Phase 3)
 
 ### Added

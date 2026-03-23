@@ -10,7 +10,6 @@
 import * as cheerio from 'cheerio';
 import type { VendorAdapter, AdapterResult, RawProduct, AdapterType } from './adapter.interface.js';
 import type { StoreScraperConfig } from './store-configs.js';
-import { isAllowed } from '../utils/robots.js';
 import { waitForRateLimit } from '../utils/rate-limiter.js';
 import { logger } from '../utils/logger.js';
 import { proxyFetch, getRandomHeaders } from '../utils/proxy-client.js';
@@ -36,19 +35,12 @@ export class WebScraperAdapter implements VendorAdapter {
     const source = storeConfig.searchUrl.replace('{query}', encodeURIComponent(storeConfig.query || ''));
 
     try {
-      // 1. robots.txt compliance
-      const robotsResult = await isAllowed(source);
-      if (!robotsResult.allowed) {
-        logger.warning('scraper.robots_blocked', `Scraping blocked by robots.txt: ${storeConfig.domain}`, { domain: storeConfig.domain });
-        return { success: false, products: [], errors: ['Blocked by robots.txt'], extraction_time_ms: Date.now() - startTime, source };
-      }
+      // Rate limiting (1 req/sec per domain)
+      await waitForRateLimit(storeConfig.domain, 1);
 
-      // 2. Rate limiting
-      await waitForRateLimit(storeConfig.domain, robotsResult.crawlDelaySeconds);
-
-      // 3. Fetch HTML with timeout
+      // Fetch HTML with timeout
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
       let html: string;
       try {

@@ -138,10 +138,10 @@ export async function crawlForProducts(request: CrawlRequest): Promise<CrawlResp
     }
   });
 
-  // Wait for all crawls with overall timeout (30s), then close Puppeteer browser
+  // Wait for all crawls — 60s overall timeout (users accept longer waits to save money)
   await Promise.race([
     Promise.allSettled(crawlPromises),
-    new Promise(resolve => setTimeout(resolve, 30000)),
+    new Promise(resolve => setTimeout(resolve, 60000)),
   ]);
 
   // Close Puppeteer browser after batch to free memory

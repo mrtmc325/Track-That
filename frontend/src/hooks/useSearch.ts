@@ -8,6 +8,10 @@ export function useSearch(params: SearchParams) {
     queryKey: ['search', params],
     queryFn: () => searchProducts(params),
     enabled: (!!params.q && params.q.length >= 2) || (!!params.category && params.category.length > 0),
+    // Crawl can take up to 55s — don't timeout on the client side
+    staleTime: 2 * 60 * 1000,  // Cache results for 2 minutes
+    retry: 1,
+    retryDelay: 2000,
   });
 }
 

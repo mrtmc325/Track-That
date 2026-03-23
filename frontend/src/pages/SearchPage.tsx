@@ -40,7 +40,19 @@ export default function SearchPage() {
     );
   }
 
-  if (isLoading) return <LoadingSpinner size="lg" />;
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center py-16 space-y-4">
+      <LoadingSpinner size="lg" />
+      <h2 className="text-lg font-semibold text-slate-700">Searching nearby stores...</h2>
+      <p className="text-sm text-slate-500 max-w-md text-center">
+        We&apos;re checking real prices at stores near you. This may take up to 30 seconds as we scan multiple retailers for the best deals.
+      </p>
+      <div className="flex items-center gap-2 text-xs text-indigo-500">
+        <span className="animate-pulse">●</span>
+        Crawling Walmart, Target, Fry&apos;s, Sprouts...
+      </div>
+    </div>
+  );
 
   if (error) {
     return (

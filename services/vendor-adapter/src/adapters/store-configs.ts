@@ -71,12 +71,13 @@ export const STORE_CONFIGS: StoreScraperConfig[] = [
     storeType: 'department',
     searchUrl: 'https://www.target.com/s?searchTerm={query}',
     selectors: {
-      productContainer: '[data-test="product-card"]',
-      productName: '[data-test="product-title"] a',
+      // Updated March 2026 — verified against live Target.com DOM
+      productContainer: '[data-test="@web/site-top-of-funnel/ProductCardWrapper"]',
+      productName: '[data-test="@web/ProductCard/title"]',
       price: '[data-test="current-price"] span',
       originalPrice: '[data-test="comparison-price"] span',
-      imageUrl: '[data-test="product-card"] img',
-      brand: '[data-test="product-title"] span:first-child',
+      imageUrl: 'picture img',
+      brand: '[data-test="@web/ProductCard/ProductCardBrandAndRibbonMessage/brand"]',
     },
     locations: [
       { address: '3901 E Thomas Rd', lat: 33.4804, lng: -111.9928, city: 'Phoenix', state: 'AZ', zip: '85018' },

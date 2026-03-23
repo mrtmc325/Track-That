@@ -1,70 +1,71 @@
 // Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /**
- * Puppeteer Scraper Adapter — for JS-rendered store websites.
- * Uses headless Chromium to execute JavaScript, wait for DOM rendering,
- * then extract product data using the same CSS selectors as Cheerio.
+ * Puppeteer Stealth Scraper — headless Chromium with anti-detection evasion.
+ * Uses puppeteer-extra + stealth plugin to bypass bot detection on major retailers.
  *
- * Stores like Walmart and Target use React/Next.js — their initial HTML
- * contains no product data. Puppeteer renders the full page first.
- *
- * security.validate_all_untrusted_input — all scraped data treated as untrusted
- * reliability.timeouts_retries_and_circuit_breakers — 15s page timeout, 10s selector wait
- * operability.observability_by_default — logs render time, extraction metrics
+ * Timeouts: 30s page load, 15s selector wait — users accept longer waits to save money.
+ * No robots.txt checks — this system does not honor robots.txt.
  */
-import puppeteer from 'puppeteer-core';
+import puppeteerExtra from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import type { Browser, Page } from 'puppeteer-core';
 import type { VendorAdapter, AdapterResult, RawProduct, AdapterType } from './adapter.interface.js';
 import type { StoreScraperConfig } from './store-configs.js';
-import { isAllowed } from '../utils/robots.js';
 import { waitForRateLimit } from '../utils/rate-limiter.js';
 import { logger } from '../utils/logger.js';
 import { getPuppeteerProxyArgs, getRandomUserAgent } from '../utils/proxy-client.js';
 
-/** Chromium path — set via PUPPETEER_EXECUTABLE_PATH env var in Docker */
+// Apply stealth plugin — evades headless detection, WebDriver checks, etc.
+puppeteerExtra.use(StealthPlugin());
+
 const CHROMIUM_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
 
-/** Shared browser instance for the crawl batch (avoids cold-start per store) */
-let browserInstance: puppeteer.Browser | null = null;
+/** Page load timeout — 30s to allow slow JS-heavy sites to fully render */
+const PAGE_TIMEOUT = 30000;
+/** Selector wait timeout — 15s after page load to find product containers */
+const SELECTOR_TIMEOUT = 15000;
+/** Max products to extract per page */
+const MAX_PRODUCTS = 50;
 
-async function getBrowser(): Promise<puppeteer.Browser> {
+let browserInstance: Browser | null = null;
+
+async function getBrowser(): Promise<Browser> {
   if (browserInstance && browserInstance.connected) {
     return browserInstance;
   }
 
-  browserInstance = await puppeteer.launch({
+  browserInstance = await puppeteerExtra.launch({
     executablePath: CHROMIUM_PATH,
-    headless: true,
+    headless: 'new',
     args: [
-      '--no-sandbox',                // Required for non-root container
-      '--disable-setuid-sandbox',    // Required for non-root container
-      '--disable-dev-shm-usage',     // Use /tmp instead of /dev/shm (Docker)
-      '--disable-gpu',               // No GPU in container
-      '--disable-extensions',        // Reduce attack surface
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-extensions',
       '--no-first-run',
-      '--single-process',            // Reduce memory in container
       '--disable-background-networking',
       '--disable-default-apps',
-      ...getPuppeteerProxyArgs(),    // Inject proxy if PROXY_URL is configured
+      '--disable-blink-features=AutomationControlled', // Hide automation flag
+      '--window-size=1920,1080',
+      ...getPuppeteerProxyArgs(),
     ],
-    timeout: 15000,
-  });
+    timeout: PAGE_TIMEOUT,
+  }) as Browser;
 
-  logger.info('puppeteer.browser_launched', 'Headless Chromium launched', {
+  logger.info('puppeteer.stealth_launched', 'Stealth Chromium launched', {
     pid: browserInstance.process()?.pid,
-    executablePath: CHROMIUM_PATH,
   });
 
   return browserInstance;
 }
 
-/**
- * Close the shared browser instance. Call after a crawl batch completes.
- */
 export async function closeBrowser(): Promise<void> {
   if (browserInstance && browserInstance.connected) {
     await browserInstance.close();
     browserInstance = null;
-    logger.debug('puppeteer.browser_closed', 'Headless Chromium closed');
+    logger.debug('puppeteer.browser_closed', 'Chromium closed');
   }
 }
 
@@ -84,33 +85,44 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
     const storeConfig = config as unknown as StoreScraperConfig & { query: string };
     const source = storeConfig.searchUrl.replace('{query}', encodeURIComponent(storeConfig.query || ''));
 
-    let page: puppeteer.Page | null = null;
+    let page: Page | null = null;
 
     try {
-      // 1. robots.txt compliance
-      const robotsResult = await isAllowed(source);
-      if (!robotsResult.allowed) {
-        logger.warning('puppeteer.robots_blocked', `Blocked by robots.txt: ${storeConfig.domain}`, { domain: storeConfig.domain });
-        return { success: false, products: [], errors: ['Blocked by robots.txt'], extraction_time_ms: Date.now() - startTime, source };
-      }
+      // Rate limiting (still respectful of server load)
+      await waitForRateLimit(storeConfig.domain, 1);
 
-      // 2. Rate limiting
-      await waitForRateLimit(storeConfig.domain, robotsResult.crawlDelaySeconds);
-
-      // 3. Launch browser + new page
+      // Launch stealth browser + new page
       const browser = await getBrowser();
-      page = await browser.newPage();
+      page = await browser.newPage() as Page;
 
-      // Set viewport and user agent
-      await page.setViewport({ width: 1280, height: 800 });
-      // Use randomized User-Agent from proxy module (not bot identifier)
+      // Randomized viewport to look like real users
+      const widths = [1366, 1440, 1536, 1920];
+      const heights = [768, 900, 864, 1080];
+      const idx = Math.floor(Math.random() * widths.length);
+      await page.setViewport({ width: widths[idx], height: heights[idx] });
+
+      // Randomized user agent from proxy module
       await page.setUserAgent(getRandomUserAgent());
 
-      // Block unnecessary resources to speed up page load
+      // Set realistic browser properties
+      await page.evaluateOnNewDocument(() => {
+        // Override navigator.webdriver to false
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        // Override chrome runtime
+        (window as any).chrome = { runtime: {} };
+        // Override permissions
+        const originalQuery = window.navigator.permissions.query;
+        window.navigator.permissions.query = (parameters: any) =>
+          parameters.name === 'notifications'
+            ? Promise.resolve({ state: 'denied' } as PermissionStatus)
+            : originalQuery(parameters);
+      });
+
+      // Block heavy resources to speed up load (keep JS for rendering)
       await page.setRequestInterception(true);
       page.on('request', (req) => {
-        const resourceType = req.resourceType();
-        if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+        const type = req.resourceType();
+        if (['image', 'stylesheet', 'font', 'media'].includes(type)) {
           req.abort();
         } else {
           req.continue();
@@ -119,64 +131,67 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
 
       const renderStart = Date.now();
 
-      // 4. Navigate to search page
-      await page.goto(source, {
-        waitUntil: 'networkidle2', // Wait until network is quiet
-        timeout: 15000,
+      // Navigate with 30s timeout
+      logger.info('puppeteer.navigating', `Navigating to ${storeConfig.domain}`, {
+        domain: storeConfig.domain,
+        timeout: PAGE_TIMEOUT,
       });
 
-      // 5. Wait for product container to render
+      await page.goto(source, {
+        waitUntil: 'networkidle2',
+        timeout: PAGE_TIMEOUT,
+      });
+
+      // Wait for product container with 15s timeout
       const selectors = storeConfig.selectors;
       try {
-        await page.waitForSelector(selectors.productContainer, { timeout: 10000 });
+        await page.waitForSelector(selectors.productContainer, { timeout: SELECTOR_TIMEOUT });
       } catch {
-        // No product container found — page may have loaded differently
-        logger.warning('puppeteer.no_products', `Product container not found on ${storeConfig.domain}`, {
-          domain: storeConfig.domain,
-          selector: selectors.productContainer,
-          renderTime: Date.now() - renderStart,
-        });
-        return { success: false, products: [], errors: ['Product container not found after JS render'], extraction_time_ms: Date.now() - startTime, source };
+        // Try alternative: wait a bit more and check for any content
+        await new Promise(r => setTimeout(r, 3000));
+        const hasContent = await page.$(selectors.productContainer);
+        if (!hasContent) {
+          logger.warning('puppeteer.no_products', `Products not found on ${storeConfig.domain}`, {
+            domain: storeConfig.domain,
+            selector: selectors.productContainer,
+            renderTime: Date.now() - renderStart,
+          });
+          return { success: false, products: [], errors: ['Product container not found'], extraction_time_ms: Date.now() - startTime, source };
+        }
       }
 
       const renderTime = Date.now() - renderStart;
 
-      // 6. Extract product data via page.$$eval
-      const extractedProducts = await page.$$eval(
-        selectors.productContainer,
-        (elements, sels) => {
-          return elements.slice(0, 50).map((el) => { // Cap at 50 products per page
-            const getText = (selector: string) => {
-              const node = el.querySelector(selector);
-              return node ? node.textContent?.trim() || '' : '';
-            };
-            const getAttr = (selector: string, attr: string) => {
-              const node = el.querySelector(selector);
-              return node ? node.getAttribute(attr) || '' : '';
-            };
-
-            return {
-              raw_name: getText(sels.productName),
-              raw_price: getText(sels.price),
-              original_price: sels.originalPrice ? getText(sels.originalPrice) : undefined,
-              image_url: sels.imageUrl ? getAttr(sels.imageUrl, 'src') : undefined,
-              brand: sels.brand ? getText(sels.brand) : undefined,
-            };
+      // Extract products using page.evaluate (avoids tsx serialization issues with $$eval)
+      const extractedProducts = await page.evaluate(function(containerSel, nameSel, priceSel, origPriceSel, imgSel, brandSel, maxItems) {
+        var cards = document.querySelectorAll(containerSel);
+        var results = [];
+        for (var i = 0; i < cards.length && i < maxItems; i++) {
+          var card = cards[i];
+          var nameNode = card.querySelector(nameSel);
+          var priceNode = card.querySelector(priceSel);
+          var name = nameNode ? nameNode.textContent.trim() : '';
+          var price = priceNode ? priceNode.textContent.trim() : '';
+          if (!name || !price) continue;
+          var origNode = origPriceSel ? card.querySelector(origPriceSel) : null;
+          var imgNode = imgSel ? card.querySelector(imgSel) : null;
+          var brandNode = brandSel ? card.querySelector(brandSel) : null;
+          results.push({
+            raw_name: name,
+            raw_price: price,
+            original_price: origNode ? origNode.textContent.trim() : '',
+            image_url: imgNode ? (imgNode.getAttribute('src') || imgNode.getAttribute('data-src') || '') : '',
+            brand: brandNode ? brandNode.textContent.trim() : '',
           });
-        },
-        {
-          productName: selectors.productName,
-          price: selectors.price,
-          originalPrice: selectors.originalPrice || '',
-          imageUrl: selectors.imageUrl || '',
-          brand: selectors.brand || '',
-        },
-      );
+        }
+        return results;
+      }, selectors.productContainer, selectors.productName, selectors.price,
+         selectors.originalPrice || '', selectors.imageUrl || '', selectors.brand || '', MAX_PRODUCTS
+      ) as { raw_name: string; raw_price: string; original_price: string; image_url: string; brand: string }[];
 
-      // 7. Convert to RawProduct format
+      // Convert to RawProduct
       for (const extracted of extractedProducts) {
         if (!extracted.raw_name || !extracted.raw_price) continue;
-
         products.push({
           raw_name: extracted.raw_name,
           raw_price: extracted.raw_price,
@@ -190,29 +205,20 @@ export class PuppeteerScraperAdapter implements VendorAdapter {
         });
       }
 
-      logger.info('puppeteer.extract', `Extracted ${products.length} products from ${storeConfig.domain} (JS render)`, {
+      logger.notice('puppeteer.extract', `Extracted ${products.length} products from ${storeConfig.domain}`, {
         domain: storeConfig.domain,
         products_found: products.length,
         render_time_ms: renderTime,
         total_time_ms: Date.now() - startTime,
       });
 
-      return {
-        success: products.length > 0,
-        products,
-        errors,
-        extraction_time_ms: Date.now() - startTime,
-        source,
-      };
+      return { success: products.length > 0, products, errors, extraction_time_ms: Date.now() - startTime, source };
     } catch (err) {
       const msg = (err as Error).message;
-      logger.error('puppeteer.extract_error', `Puppeteer error for ${storeConfig.domain}: ${msg}`, { domain: storeConfig.domain });
+      logger.error('puppeteer.extract_error', `Error on ${storeConfig.domain}: ${msg}`, { domain: storeConfig.domain });
       return { success: false, products: [], errors: [msg], extraction_time_ms: Date.now() - startTime, source };
     } finally {
-      // Always close the page (but keep browser alive for next store)
-      if (page) {
-        try { await page.close(); } catch { /* ignore */ }
-      }
+      if (page) { try { await page.close(); } catch { /* ignore */ } }
     }
   }
 }

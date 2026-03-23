@@ -332,46 +332,41 @@ export async function searchWithCrawl(
   params: SearchParams,
   authenticated: boolean = false,
 ): Promise<SearchResponse | { error: { code: string; message: string } }> {
-  // Always trigger crawl when user has location set and a search query.
-  // Anti-detection (UA rotation, header randomization) is ALWAYS ON for all crawls.
-  // Authenticated users additionally get proxy-URL routing if PROXY_URL is configured.
+  // Fire crawl in the BACKGROUND — don't block the search response.
+  // Return cached/seeded results immediately. Crawl indexes products
+  // for future searches + the frontend can poll for CAPTCHA sessions.
   if (params.q && params.q.length >= 2 && params.lat !== undefined && params.lng !== undefined) {
-    try {
-      logger.info('search.crawl_trigger', 'Triggering crawl with anti-detection', {
+    // Background crawl — fire and forget
+    fetch('http://vendor-service:3007/api/v1/crawl', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         query: params.q,
-        authenticated,
-      });
-      const crawlResponse = await fetch('http://vendor-service:3007/api/v1/crawl', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: params.q,
-          lat: params.lat,
-          lng: params.lng,
-          radius: params.radius || 25,
-        }),
-        signal: AbortSignal.timeout(130000), // 130s — must exceed vendor crawl's 120s CAPTCHA wait
-      });
-
+        lat: params.lat,
+        lng: params.lng,
+        radius: params.radius || 25,
+      }),
+    }).then(async (crawlResponse) => {
       if (crawlResponse.ok) {
         const crawlData = await crawlResponse.json() as { success: boolean; data: { products: ProductDocument[] } };
         if (crawlData.success && crawlData.data.products.length > 0) {
-          // Index crawled products into our in-memory store
           for (const product of crawlData.data.products) {
             indexProduct(product);
           }
-          logger.info('search.crawl_indexed', `Indexed ${crawlData.data.products.length} products from crawl`, {
+          logger.notice('search.crawl_indexed', `Background crawl indexed ${crawlData.data.products.length} products`, {
             query: params.q,
             products_indexed: crawlData.data.products.length,
           });
         }
       }
-    } catch (err) {
-      // Crawl failed or timed out — fall back to existing data
-      logger.warning('search.crawl_failed', `Crawl failed, using cached data: ${(err as Error).message}`, {
-        query: params.q,
-      });
-    }
+    }).catch((err) => {
+      logger.warning('search.crawl_failed', `Background crawl failed: ${(err as Error).message}`, { query: params.q });
+    });
+
+    logger.info('search.crawl_trigger', 'Background crawl triggered (non-blocking)', {
+      query: params.q,
+      authenticated,
+    });
   }
 
   // Run the normal search against whatever products we have (cached + newly crawled)

@@ -19,7 +19,7 @@ export default function SearchPage() {
   const page = parseInt(params.get('page') || '1', 10);
   const { lat, lng, radius } = useGeoStore();
 
-  const { data, isLoading, error } = useSearch({
+  const { data, isLoading, error, refetch } = useSearch({
     q: query,
     lat: lat ?? undefined,
     lng: lng ?? undefined,
@@ -44,20 +44,37 @@ export default function SearchPage() {
     );
   }
 
-  // Poll for CAPTCHA sessions while search is loading
+  const [crawlingInBackground, setCrawlingInBackground] = useState(false);
+
+  // Poll for CAPTCHA sessions continuously while on the search page
+  // Also detect when background crawl finishes and auto-refetch results
   useEffect(() => {
-    if (!isLoading) { setCaptcha(null); return; }
+    if (!query && !category) return;
+
+    setCrawlingInBackground(true);
+    let refetchTimer: ReturnType<typeof setTimeout>;
+
     const interval = setInterval(async () => {
       try {
-        const { data } = await apiClient.get('/captcha/pending');
-        if (data.success && data.data.sessions.length > 0) {
-          const s = data.data.sessions[0];
+        // Check for pending CAPTCHAs
+        const { data: captchaData } = await apiClient.get('/captcha/pending');
+        if (captchaData.success && captchaData.data.sessions.length > 0) {
+          const s = captchaData.data.sessions[0];
           setCaptcha({ sessionId: s.id, screenshot: s.screenshot, domain: s.domain });
+        } else if (captcha) {
+          setCaptcha(null); // CAPTCHA was solved
         }
-      } catch { /* ignore polling errors */ }
-    }, 3000); // Poll every 3 seconds
-    return () => clearInterval(interval);
-  }, [isLoading]);
+      } catch { /* ignore */ }
+    }, 3000);
+
+    // After 30s and 60s, auto-refetch search results to pick up crawled products
+    refetchTimer = setTimeout(() => {
+      refetch();
+      setCrawlingInBackground(false);
+    }, 45000); // Refetch after 45s to pick up background crawl results
+
+    return () => { clearInterval(interval); clearTimeout(refetchTimer); };
+  }, [query, category]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center py-16 space-y-4">
@@ -102,7 +119,27 @@ export default function SearchPage() {
 
   return (
     <div className="space-y-6">
+      {/* CAPTCHA Modal — shows when a store requires verification */}
+      {captcha && (
+        <CaptchaModal
+          sessionId={captcha.sessionId}
+          initialScreenshot={captcha.screenshot}
+          domain={captcha.domain}
+          onSolved={() => { setCaptcha(null); setTimeout(() => refetch(), 3000); }}
+          onDismiss={() => setCaptcha(null)}
+        />
+      )}
+
       <LocationBar />
+
+      {/* Background crawl indicator */}
+      {crawlingInBackground && (
+        <div className="flex items-center gap-2 rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-2 text-sm text-indigo-700">
+          <span className="animate-spin h-4 w-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full" />
+          Scanning stores for more deals... Results will update automatically.
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">
           {query ? <>Results for &ldquo;{query}&rdquo;</> : `${category} products`}

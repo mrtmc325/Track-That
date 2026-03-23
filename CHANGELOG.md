@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-22 — Sprint 3 1.7: Risk Mitigations
+
+### Added
+- **@track-that/resilience** — new shared library
+  - `CircuitBreaker` class (R4/R9): CLOSED→OPEN→HALF_OPEN state machine with configurable thresholds, fallback support, and onStateChange callbacks
+  - `retryWithBackoff` (R3): exponential backoff with jitter for payment retries, retryable-error predicate
+  - `withFallback` + `withTimeout` (R5/R9): primary/secondary pattern for ES→PG and Redis→DB degradation
+
+- **CSRF middleware** (R7): double-submit cookie pattern with `crypto.timingSafeEqual`, SameSite=Strict cookies
+- **Input sanitizer** (R7): strips HTML tags, `javascript:` URIs, `on*=` event handlers from request bodies
+- **robots.txt checker** (R2): fetch + parse + 24h cache, `TrackThat-Bot` User-Agent, `Crawl-delay` support
+- **Per-domain rate limiter** (R2): enforces 1 req/sec/domain (configurable via Crawl-delay)
+- **Price staleness classifier** (R6): FRESH/AGING/STALE/EXPIRED thresholds (4/24/72h), freshness score for deal ranking
+- **Geolocation privacy** (R11): coordinate redaction for logs (2 decimal precision), consent-based persistence, session-only default
+
+### Changed
+- All 10 Dockerfiles pinned to SHA256 digests (R10: supply chain integrity)
+  - `node:20-alpine@sha256:ad55...`, `nginx:alpine@sha256:6564...`, `traefik:v3.0@sha256:9fac...`
+
+### Tests (56 new, all passing)
+- Circuit breaker: 11 tests (state transitions, fallback, window pruning)
+- Retry: 8 tests (backoff, jitter, retryable predicate)
+- Fallback: 7 tests (timeout, both-fail, callback)
+- CSRF: 5 tests (cookie set, missing token 403, mismatch 403, valid pass-through)
+- Sanitize: 6 tests (HTML strip, XSS patterns, nested objects)
+- Staleness: 13 tests (classification boundaries, score, result exclusion)
+- Privacy: 6 tests (coordinate redaction, consent, defaults)
+
 ## [0.2.0] - 2026-03-22 — Sprint 2 1.4-1.6.3: Contracts, Validation & CI
 
 ### Added

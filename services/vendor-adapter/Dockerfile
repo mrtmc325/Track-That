@@ -1,4 +1,5 @@
-FROM node:20-alpine AS builder
+# Pinned per security.supply_chain_integrity (R10)
+FROM node:20-alpine@sha256:ad55aa3b18e44fa2df3917bfb5c1e2c7e03f1aab0af36bba59bafe5e2b5fe3f0 AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --ignore-scripts
@@ -6,7 +7,8 @@ COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npm run build
 
-FROM node:20-alpine
+# Pinned per security.supply_chain_integrity (R10)
+FROM node:20-alpine@sha256:ad55aa3b18e44fa2df3917bfb5c1e2c7e03f1aab0af36bba59bafe5e2b5fe3f0
 # Non-root runtime per security.release_runtime_non_root_identity
 RUN addgroup -S trackuser && adduser -S trackuser -G trackuser
 WORKDIR /app

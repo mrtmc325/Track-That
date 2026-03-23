@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 /**
  * Fallback pattern — try primary, fall back to secondary
  * Per reliability.timeouts_retries_and_circuit_breakers

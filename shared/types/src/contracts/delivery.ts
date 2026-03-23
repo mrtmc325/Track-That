@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 // API Contract: Delivery Broker
 // Per security.validate_all_untrusted_input — webhook payloads validated with HMAC + Zod
 // Per reliability.idempotent_and_retry_safe_interfaces — replay protection via timestamp + nonce

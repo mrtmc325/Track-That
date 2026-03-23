@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 export default function EmptyState({ title, message, action }: { title: string; message: string; action?: { label: string; href: string } }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">

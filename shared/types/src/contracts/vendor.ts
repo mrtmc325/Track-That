@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 // Inter-Service Contract: Vendor Adapter → Elasticsearch
 // This defines the indexed document shape in Elasticsearch
 // Per operability.observability_by_default — last_updated tracked for staleness monitoring

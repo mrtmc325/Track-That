@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 /**
  * Delivery Broker — selects optimal provider per sub-order.
  * Per Phase 8 spec: weight-based routing decision tree.

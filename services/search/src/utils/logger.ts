@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 // Uniform structured logging per operability.uniform_logging_with_syslog_severity_0_to_7
 const SENSITIVE_KEYS = ['password', 'token', 'secret', 'authorization', 'cookie', 'card'];
 

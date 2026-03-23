@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 /**
  * Coupon Service — manages coupons and applies them to product prices.
  * Per Phase 5 spec: applies active coupons/promotions to compute effective prices.

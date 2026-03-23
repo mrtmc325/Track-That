@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 import { Request, Response } from 'express';
 import { nearbyStoresSchema, distanceSchema, geocodeSchema, reverseGeocodeSchema } from '../schemas/geo.schema.js';
 import * as proximityService from '../services/store-proximity.service.js';

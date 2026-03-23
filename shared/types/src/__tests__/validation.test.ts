@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 import { describe, it, expect } from 'vitest';
 import { searchQuerySchema, addToCartSchema, updateCartItemSchema, setFulfillmentSchema, deliveryWebhookSchema } from '../validation/index.js';
 

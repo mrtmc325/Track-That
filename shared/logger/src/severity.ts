@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// This file is part of Track-That. See LICENSE for details.
+
 /**
  * Syslog severity levels per RFC 5424.
  * Using 0–7 ensures uniform log severity across all services.

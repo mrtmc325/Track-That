@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-23 — Sprint 9: Geolocation & Map Integration (Phase 6)
+
+### Added
+- **Geocoding Service** (services/geo/src/services/geocoding.service.ts)
+  - Forward geocode: address → lat/lng (Nominatim abstraction with in-memory mock for dev)
+  - Reverse geocode: lat/lng → address with 4-decimal-place coordinate rounding
+  - Geohash-keyed distance cache (24h TTL, commutative key normalization)
+  - Address hashing for safe logging (SHA-256, never logs raw addresses)
+
+- **Store Proximity Service** (services/geo/src/services/store-proximity.service.ts)
+  - `queryNearbyStores()`: radius filter + store type filter + distance sorting + cache-aware
+  - `distanceToStore()`: single-store distance lookup
+  - In-memory store registry with active/inactive filtering
+
+- **Geo API Routes**
+  - `GET /api/v1/geo/stores?lat=&lng=&radius=&type=` — Stores within radius
+  - `GET /api/v1/geo/distance?from_lat=&from_lng=&store_id=` — Distance to specific store
+  - `POST /api/v1/geo/geocode` — Address to lat/lng
+  - `GET /api/v1/geo/reverse?lat=&lng=` — Lat/lng to address
+
+- **Zod Schemas** for all geo endpoints with coordinate bounds and store type enum
+
+### Tests (40 total in geo service, all passing)
+- 11 geocoding tests (forward/reverse, mock resolution, caching, coordinate rounding)
+- 11 store proximity tests (radius filter, type filter, distance sorting, inactive exclusion)
+- 12 distance tests + 6 privacy tests (unchanged from Sprint 4)
+
 ## [0.8.0] - 2026-03-23 — Sprint 8: Price Comparison & Deal Analysis (Phase 5)
 
 ### Added

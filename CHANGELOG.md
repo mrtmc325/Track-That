@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-22 — Sprint 2 1.4-1.6.3: Contracts, Validation & CI
+
+### Added
+- **API Contract Types** (shared/types/src/contracts/)
+  - `search.ts` — SearchResponse, SearchQuery, ProductSummary, BestPrice, StoreListing, SuggestResponse
+  - `cart.ts` — CartResponse, CartStoreGroup, AddToCartRequest, SetFulfillmentRequest, CheckoutInitiateResponse, OrderSummary
+  - `delivery.ts` — DeliveryWebhookPayload, DeliveryQuoteRequest/Response, DeliveryStatusResponse
+  - `vendor.ts` — ProductDocument (ES index shape), RawScrapedProduct, NormalizedProduct
+
+- **Zod Validation Schemas** (shared/types/src/validation/)
+  - `search.schema.ts` — searchQuerySchema (min 2 chars, max 200, radius cap 50, coercion for query params)
+  - `cart.schema.ts` — addToCartSchema (UUID + quantity 1-99), setFulfillmentSchema (delivery requires address, ZIP regex)
+  - `delivery.schema.ts` — deliveryWebhookSchema (event enum, ISO timestamp, phone_last4 format)
+
+- **Frontend Contract Types** — `frontend/src/types/contracts.ts` (response-only mirrors, no Zod)
+
+- **CI Pipeline** (.github/workflows/ci.yml) — 13 checks:
+  - Merge blockers: lint, format, typecheck, unit tests, integration tests, dependency audit, container scan (Trivy), secret scan (TruffleHog), license check, migration safety, non-root verify, commit message (commitlint)
+  - Release blocker: E2E tests (Playwright)
+
+- **Linting & Formatting** — eslint.config.mjs (ESLint 9 flat config), .prettierrc, commitlint.config.cjs
+
+- **Root Workspace** — package.json with npm workspaces (shared/*, services/*, frontend, database)
+
+- **Test Infrastructure** — vitest.config.ts (80% coverage thresholds), database/package.json
+
+- **Unit Tests** (32 passing)
+  - shared/logger: 10 tests (severity mapping, redaction, metadata handling)
+  - shared/types: 22 tests (AppError, ErrorCodes, Zod schemas for search/cart/delivery)
+
+- **E2E Test Scaffolds** (Playwright, all 10 scenarios with skip markers)
+  - auth.spec.ts — registration flow, rate limiting, CSRF protection
+  - search.spec.ts — similar items fallback, fuzzy correction, price staleness
+  - cart-checkout.spec.ts — multi-store cart, Stripe payment, delivery tracking
+  - infrastructure.spec.ts — non-root container verification
+
 ### Added
 - **TRACK_THAT_PLAN.md**: Comprehensive 15-phase planning document covering:
   - Phase 1: System architecture with microservices topology, domain entity model, Docker Compose layout

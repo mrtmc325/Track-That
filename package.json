@@ -1,0 +1,29 @@
+{
+  "name": "track-that",
+  "private": true,
+  "workspaces": [
+    "shared/*",
+    "services/*",
+    "frontend",
+    "database"
+  ],
+  "scripts": {
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,yml,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,yml,md}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "prettier": "^3.3.0",
+    "vitest": "^2.0.0",
+    "typescript": "^5.4.0"
+  }
+}

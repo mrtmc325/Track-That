@@ -1,0 +1,195 @@
+name: CI Pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # --- Merge Blockers (checks 1-12) ---
+  lint:
+    name: "Check 1: Lint (ESLint)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npm run lint --workspaces --if-present
+
+  format:
+    name: "Check 2: Format (Prettier)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npx prettier --check "**/*.{ts,tsx,json,yml,md}"
+
+  typecheck:
+    name: "Check 3: Type Check (tsc)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npm run typecheck --workspaces --if-present
+
+  unit-tests:
+    name: "Check 4: Unit Tests (Vitest)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npm test --workspaces --if-present
+
+  integration-tests:
+    name: "Check 5: Integration Tests"
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: trackhat_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      elasticsearch:
+        image: elasticsearch:8.13.0
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          ES_JAVA_OPTS: '-Xms256m -Xmx256m'
+        ports: ['9200:9200']
+        options: >-
+          --health-cmd "curl -f http://localhost:9200/_cluster/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npm run test:integration --workspaces --if-present
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: trackhat_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          ELASTICSEARCH_HOST: localhost
+          ELASTICSEARCH_PORT: 9200
+
+  dependency-audit:
+    name: "Check 6: Dependency Audit"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npm audit --audit-level=high --workspaces
+
+  container-scan:
+    name: "Check 7: Container Scan (Trivy)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build
+      - name: Run Trivy on all images
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+  secret-scan:
+    name: "Check 8: Secret Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  license-check:
+    name: "Check 9: License Check"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npx license-checker --production --failOn "GPL-2.0;GPL-3.0;AGPL-1.0;AGPL-3.0"
+
+  migration-safety:
+    name: "Check 10: Migration Safety"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: cd database && npm ci
+      - run: cd database && npx prisma validate
+
+  non-root-verify:
+    name: "Check 11: Non-Root Container Verify"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build
+      - name: Verify non-root
+        run: ./scripts/verify-non-root.sh
+
+  commit-message:
+    name: "Check 12: Commit Message"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+
+  # --- Release Blocker (check 13) ---
+  e2e-tests:
+    name: "Check 13: E2E Tests (Playwright)"
+    runs-on: ubuntu-latest
+    needs: [lint, format, typecheck, unit-tests, integration-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - run: npm ci --workspaces --include-workspace-root
+      - run: npx playwright install --with-deps
+      - run: npm run test:e2e --workspace=frontend
+        env:
+          CI: true

@@ -4,6 +4,12 @@
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc" },
-  "devDependencies": { "typescript": "^5.4.0" }
+  "scripts": { "build": "tsc", "test": "vitest run" },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
 }

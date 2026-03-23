@@ -39,18 +39,20 @@ async function getBrowser(): Promise<Browser> {
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--no-first-run',
+      '--single-process',            // Required for Docker containers
+      '--no-zygote',                  // Fix dbus crash in containers
+      '--disable-software-rasterizer',
       '--disable-background-networking',
       '--disable-default-apps',
 
       // ─── TLS FINGERPRINT SPOOFING ───
-      // Match real Chrome TLS behavior — disable features that expose headless
       '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process', // Match real Chrome process model
-      '--enable-features=NetworkService,NetworkServiceInProcess', // Real Chrome network stack
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--enable-features=NetworkService,NetworkServiceInProcess',
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
-      '--disable-ipc-flooding-protection',  // Prevents TLS timing differences
+      '--disable-ipc-flooding-protection',
       '--lang=en-US,en',
       '--window-size=1920,1080',
 

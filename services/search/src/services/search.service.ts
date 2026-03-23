@@ -350,7 +350,7 @@ export async function searchWithCrawl(
           lng: params.lng,
           radius: params.radius || 25,
         }),
-        signal: AbortSignal.timeout(55000), // 55s — wait for stealth crawl to complete
+        signal: AbortSignal.timeout(65000), // 65s — must exceed vendor crawl's 60s timeout
       });
 
       if (crawlResponse.ok) {

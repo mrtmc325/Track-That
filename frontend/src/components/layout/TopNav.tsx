@@ -5,10 +5,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useCartStore } from '../../stores/cartStore';
+import { useGeoStore } from '../../stores/geoStore';
 
 export default function TopNav() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const { itemCount } = useCartStore();
+  const { zipCode, radius } = useGeoStore();
   const navigate = useNavigate();
 
   return (
@@ -23,6 +25,11 @@ export default function TopNav() {
         </form>
 
         <div className="flex items-center gap-4">
+          {zipCode && (
+            <span className="hidden sm:inline text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+              📍 {zipCode} · {radius} mi
+            </span>
+          )}
           <Link to="/cart" className="relative" aria-label={`Cart with ${itemCount} items`}>
             <svg className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />

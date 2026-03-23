@@ -9,6 +9,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
+import crawlRoutes from './routes/crawl.routes.js';
 
 const app = express();
 
@@ -33,10 +34,8 @@ app.get('/readyz', (_req, res) => {
   res.json({ status: 'ok', checks: [] });
 });
 
-// Internal cron worker — no public-facing API routes.
-// TODO: Start BullMQ workers for vendor scraping jobs
-// import { startWorkers } from './workers/index.js';
-// startWorkers();
+// Mount crawl API for inter-service calls from search service
+app.use('/api/v1', crawlRoutes);
 
 app.listen(config.PORT, () => {
   logger.notice('vendor-adapter.startup', `Vendor-adapter service listening on port ${config.PORT}`, { port: config.PORT });

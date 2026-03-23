@@ -24,7 +24,8 @@ export async function searchProducts(req: Request, res: Response): Promise<void>
 
   const { q, lat, lng, radius, category, page, page_size } = parsed.data;
 
-  const result = searchService.search({
+  // Use crawl-then-search: triggers vendor-adapter crawl, then searches indexed results
+  const result = await searchService.searchWithCrawl({
     q,
     lat,
     lng,

@@ -324,6 +324,52 @@ function browseCategoryOnly(params: SearchParams, startTime: number): SearchResp
 }
 
 /**
+ * Search with real-time crawling.
+ * Calls vendor-adapter to crawl nearby stores, indexes results, then runs search.
+ * Falls back to local search if crawl fails or times out.
+ */
+export async function searchWithCrawl(params: SearchParams): Promise<SearchResponse | { error: { code: string; message: string } }> {
+  // Only trigger crawl if we have location data and a query
+  if (params.q && params.q.length >= 2 && params.lat !== undefined && params.lng !== undefined) {
+    try {
+      const crawlResponse = await fetch('http://vendor-service:3007/api/v1/crawl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: params.q,
+          lat: params.lat,
+          lng: params.lng,
+          radius: params.radius || 25,
+        }),
+        signal: AbortSignal.timeout(25000), // 25s timeout for crawl
+      });
+
+      if (crawlResponse.ok) {
+        const crawlData = await crawlResponse.json() as { success: boolean; data: { products: ProductDocument[] } };
+        if (crawlData.success && crawlData.data.products.length > 0) {
+          // Index crawled products into our in-memory store
+          for (const product of crawlData.data.products) {
+            indexProduct(product);
+          }
+          logger.info('search.crawl_indexed', `Indexed ${crawlData.data.products.length} products from crawl`, {
+            query: params.q,
+            products_indexed: crawlData.data.products.length,
+          });
+        }
+      }
+    } catch (err) {
+      // Crawl failed or timed out — fall back to existing data
+      logger.warning('search.crawl_failed', `Crawl failed, using cached data: ${(err as Error).message}`, {
+        query: params.q,
+      });
+    }
+  }
+
+  // Run the normal search against whatever products we have (cached + newly crawled)
+  return search(params);
+}
+
+/**
  * Autocomplete suggestions.
  * Returns product names matching the prefix.
  */

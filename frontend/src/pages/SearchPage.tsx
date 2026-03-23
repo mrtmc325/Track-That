@@ -6,6 +6,7 @@ import { useGeoStore } from '../stores/geoStore';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import EmptyState from '../components/shared/EmptyState';
 import Badge from '../components/shared/Badge';
+import LocationBar from '../components/shared/LocationBar';
 
 export default function SearchPage() {
   const [params] = useSearchParams();
@@ -27,6 +28,18 @@ export default function SearchPage() {
     return <EmptyState title="Start searching" message="Enter a product name to find the best deals near you" action={{ label: 'Go Home', href: '/' }} />;
   }
 
+  const isLocationSet = lat !== null && lng !== null;
+
+  if (!isLocationSet) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-slate-800">Set your location first</h1>
+        <p className="text-slate-500">Enter a ZIP code to search for products at nearby stores.</p>
+        <LocationBar />
+      </div>
+    );
+  }
+
   if (isLoading) return <LoadingSpinner size="lg" />;
 
   if (error) {
@@ -43,6 +56,7 @@ export default function SearchPage() {
 
   return (
     <div className="space-y-6">
+      <LocationBar />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">
           {query ? <>Results for &ldquo;{query}&rdquo;</> : `${category} products`}

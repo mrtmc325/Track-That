@@ -1,15 +1,17 @@
 // Copyright (C) 2026 Tristan Conner <tmconner325@gmail.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// This file is part of Track-That. See LICENSE for details.
-
 import { Link } from 'react-router-dom';
+import LocationBar from '../components/shared/LocationBar';
 
 export default function HomePage() {
   return (
     <div className="space-y-8">
-      <section className="text-center py-12" aria-label="Hero search">
+      {/* Location Bar — prominent, first thing user sees */}
+      <LocationBar />
+
+      <section className="text-center py-8" aria-label="Hero search">
         <h1 className="text-3xl font-bold text-slate-800 sm:text-4xl">Find the Best Local Deals</h1>
-        <p className="mt-2 text-lg text-slate-500">Compare prices across stores near you</p>
+        <p className="mt-2 text-lg text-slate-500">Set your ZIP code above, then search to compare real prices from nearby stores</p>
         <form action="/search" method="get" className="mx-auto mt-6 max-w-xl" role="search">
           <label htmlFor="hero-search" className="sr-only">Search products</label>
           <div className="flex gap-2">

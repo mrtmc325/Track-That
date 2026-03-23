@@ -24,7 +24,11 @@ export async function searchProducts(req: Request, res: Response): Promise<void>
 
   const { q, lat, lng, radius, category, page, page_size } = parsed.data;
 
-  // Use crawl-then-search: triggers vendor-adapter crawl, then searches indexed results
+  // Check if user is authenticated (has access_token cookie)
+  // Authenticated users get full crawl-then-search with anti-detection proxy behavior
+  // Anonymous users get cached results only (no crawl triggered)
+  const isAuthenticated = !!(req.cookies?.access_token || req.headers.cookie?.includes('access_token'));
+
   const result = await searchService.searchWithCrawl({
     q,
     lat,
@@ -33,7 +37,7 @@ export async function searchProducts(req: Request, res: Response): Promise<void>
     category,
     page,
     pageSize: page_size,
-  });
+  }, isAuthenticated);
 
   if ('error' in result) {
     res.status(400).json({ success: false, error: result.error });

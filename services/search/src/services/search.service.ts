@@ -328,10 +328,19 @@ function browseCategoryOnly(params: SearchParams, startTime: number): SearchResp
  * Calls vendor-adapter to crawl nearby stores, indexes results, then runs search.
  * Falls back to local search if crawl fails or times out.
  */
-export async function searchWithCrawl(params: SearchParams): Promise<SearchResponse | { error: { code: string; message: string } }> {
-  // Only trigger crawl if we have location data and a query
-  if (params.q && params.q.length >= 2 && params.lat !== undefined && params.lng !== undefined) {
+export async function searchWithCrawl(
+  params: SearchParams,
+  authenticated: boolean = false,
+): Promise<SearchResponse | { error: { code: string; message: string } }> {
+  // Authenticated users: always trigger real-time crawl with full anti-detection proxy behavior
+  // Anonymous users: return cached/seeded results only (no crawl, no external requests)
+  // Per spec: "all user sessions that login will be granted auto-proxy behavior"
+  if (authenticated && params.q && params.q.length >= 2 && params.lat !== undefined && params.lng !== undefined) {
     try {
+      logger.info('search.crawl_trigger', 'Authenticated session — triggering crawl with proxy', {
+        query: params.q,
+        authenticated: true,
+      });
       const crawlResponse = await fetch('http://vendor-service:3007/api/v1/crawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

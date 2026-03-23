@@ -20,15 +20,24 @@ import { logger } from './logger.js';
 // ─── Configuration ───
 
 const PROXY_URL = process.env.PROXY_URL || '';
-const PROXY_ENABLED = process.env.PROXY_ENABLED === 'true' && PROXY_URL.length > 0;
+const PROXY_ROUTING_ENABLED = process.env.PROXY_ROUTING_ENABLED === 'true' && PROXY_URL.length > 0;
+
+/**
+ * Anti-detection is ALWAYS ON for all authenticated user sessions.
+ * UA rotation + header randomization runs on every request regardless of proxy routing.
+ * Proxy URL routing is optional (only when PROXY_URL is configured).
+ */
+const ANTI_DETECTION_ALWAYS_ON = true;
 
 let proxyAgent: HttpsProxyAgent<string> | null = null;
-if (PROXY_ENABLED && PROXY_URL) {
+if (PROXY_ROUTING_ENABLED && PROXY_URL) {
   proxyAgent = new HttpsProxyAgent(PROXY_URL);
-  logger.notice('proxy.init', `Proxy enabled: ${PROXY_URL.replace(/\/\/.*@/, '//<redacted>@')}`, {});
-} else {
-  logger.info('proxy.init', 'Proxy disabled — direct connections', {});
+  logger.notice('proxy.init', `Proxy routing enabled: ${PROXY_URL.replace(/\/\/.*@/, '//<redacted>@')}`, {});
 }
+logger.info('proxy.init', `Anti-detection: ALWAYS ON | Proxy routing: ${PROXY_ROUTING_ENABLED ? 'ENABLED' : 'DIRECT'}`, {
+  anti_detection: ANTI_DETECTION_ALWAYS_ON,
+  proxy_routing: PROXY_ROUTING_ENABLED,
+});
 
 // ─── User-Agent Pool ───
 // Real browser User-Agents from Chrome 120-125, Firefox 121-124, Safari 17, Edge 120
@@ -146,14 +155,14 @@ export async function proxyFetch(
   // If proxy is enabled, use the proxy agent for Node.js fetch
   // Note: Node.js native fetch doesn't support `agent` directly.
   // We use https-proxy-agent with the global dispatcher pattern.
-  if (PROXY_ENABLED && proxyAgent) {
+  if (PROXY_ROUTING_ENABLED && proxyAgent) {
     // For proxy support with native fetch, set the dispatcher
     fetchOptions.dispatcher = proxyAgent;
   }
 
   const ua = headers['User-Agent']?.substring(0, 40) || 'unknown';
-  logger.debug('proxy.fetch', `${PROXY_ENABLED ? 'PROXY' : 'DIRECT'} → ${typeof url === 'string' ? new URL(url).hostname : url.hostname}`, {
-    proxy_enabled: PROXY_ENABLED,
+  logger.debug('proxy.fetch', `${PROXY_ROUTING_ENABLED ? 'PROXY' : 'DIRECT'} → ${typeof url === 'string' ? new URL(url).hostname : url.hostname}`, {
+    proxy_enabled: PROXY_ROUTING_ENABLED,
     user_agent_prefix: ua,
   });
 
@@ -165,7 +174,7 @@ export async function proxyFetch(
  * Returns empty array if proxy is not configured.
  */
 export function getPuppeteerProxyArgs(): string[] {
-  if (!PROXY_ENABLED || !PROXY_URL) return [];
+  if (!PROXY_ROUTING_ENABLED || !PROXY_URL) return [];
 
   // Extract host:port from proxy URL (strip auth for Chromium arg)
   try {
@@ -183,5 +192,5 @@ export function getPuppeteerProxyArgs(): string[] {
  * Check if proxy is currently enabled.
  */
 export function isProxyEnabled(): boolean {
-  return PROXY_ENABLED;
+  return PROXY_ROUTING_ENABLED;
 }

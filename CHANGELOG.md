@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-23 — Sprint 8: Price Comparison & Deal Analysis (Phase 5)
+
+### Added
+- **Price Comparison Service** (services/price-engine/src/services/price-comparison.service.ts)
+  - `compareProductPrices()`: full pipeline — staleness filter → coupon application → scoring → ranked results
+  - `getBestDeals()`: top N products by deal score across categories, with location filtering
+  - `recordPrice()` / `getPriceHistory()`: price history tracking for trend analysis (last 100 entries per pair)
+  - In-memory TTL cache (10-min per spec) with cache-key invalidation on price changes
+  - Savings calculation: `savings_vs_highest` in best_deal summary
+
+- **Coupon Service** (services/price-engine/src/services/coupon.service.ts)
+  - `findApplicableCoupons()`: filter by store, validity dates, product IDs, categories (product filter takes precedence)
+  - `bestCouponDiscount()`: picks max(absolute, percentage, BOGO), respects minimum purchase, caps at base price
+  - `purgeExpired()`: auto-cleanup of stale coupons
+  - Universal coupons (no product/category filter) apply to all products
+
+- **Similar Items Fallback** (services/price-engine/src/services/similar-items.service.ts)
+  - 60% query-term overlap for partial name matches
+  - Category-based fallback and brand-alternative matching
+  - Relevance-scored results sorted by match quality
+
+- **Price API Routes**
+  - `GET /api/v1/prices/compare?product_id=&lat=&lng=&radius=` — Multi-store price comparison
+  - `GET /api/v1/prices/best-deals?category=&lat=&lng=&limit=` — Top deals in area
+  - `GET /api/v1/prices/history/:id` — Price history for trending
+
+- **Zod Schemas** for all price endpoints with coerced numerics and UUID validation
+
+### Tests (64 total in price-engine, all passing)
+- 16 coupon tests (applicability, discounts, BOGO, minimum purchase, purge)
+- 15 price comparison tests (ranking, coupons, expired exclusion, cache, savings, metadata)
+- 8 similar items tests (partial name, category, brand, exclusion, limit)
+- 12 scoring tests + 13 staleness tests (unchanged from Sprint 4)
+
 ## [0.7.0] - 2026-03-23 — Sprint 7: Vendor Adapter (Phase 4)
 
 ### Added

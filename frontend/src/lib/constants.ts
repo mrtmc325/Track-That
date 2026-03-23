@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 
 /** Base URL for all API calls. The Vite dev proxy rewrites /api → gateway. */
-export const API_BASE_URL = '/api';
+export const API_BASE_URL = '/api/v1';
 
 /** Product / store category identifiers used across the app. */
 export enum CATEGORIES {

@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-03-23 — Sprint 14: Data Layer & Storage Architecture (Phase 11)
+
+### Added
+- **Elasticsearch Index Config** (services/search/src/elasticsearch/indices.ts)
+  - `PRODUCTS_INDEX_SETTINGS`: custom `product_analyzer` (stemmer + 13 synonym groups + asciifolding)
+  - Full mappings: nested `store_listings` with `geo_point`, completion suggester on `canonical_name`
+  - `buildSearchQuery()`: multi-match + geo filter + fuzzy + synonym boosts + pagination (max 50)
+  - `buildSuggestQuery()`: completion suggest with fuzziness 1
+  - 30-second refresh interval per performance spec
+
+- **AES-256-GCM Encryption** (shared/middleware/src/encryption.ts)
+  - `encrypt()` / `decrypt()`: application-level field encryption with random IV
+  - `encryptJson()` / `decryptJson()`: JSON object encryption for adapter_config
+  - Key from `FIELD_ENCRYPTION_KEY` env var (256-bit, hex-encoded)
+  - GCM authenticated encryption (integrity + confidentiality)
+  - Tamper detection via auth tag verification
+
+- **ADR-006: Data Lifecycle & Backup** (docs/adr/ADR-006-data-lifecycle-and-backup.md)
+  - Three-tier lifecycle: Hot (<30d) → Warm (30-180d) → Cold (>180d)
+  - Partitioning strategy for orders, price history, coupons
+  - Backup RPO/RTO: PostgreSQL (5m/30m), Elasticsearch (24h/2h), Redis (15m/5m)
+  - Encryption at rest: LUKS volumes + AES-256-GCM application-level for sensitive fields
+
+### Pre-existing (verified from Sprint 1)
+- Prisma schema: 5 schemas, 12 models, all enums, cross-schema relations
+- Per-service DB roles: auth_svc, catalog_svc, commerce_svc, promotions_svc, search_svc
+- Seed data: 2 users, 5 stores, 10 products, 13 store_products, 3 coupons
+
+### Tests (28 new, all passing)
+- 16 ES index tests (settings, analyzer, mappings, buildSearchQuery, buildSuggestQuery)
+- 12 encryption tests (round-trip, random IV, unicode, tamper detection, JSON, adapter_config)
+
 ## [1.3.0] - 2026-03-23 — Sprint 13: Observability, Security & Infrastructure (Phase 10)
 
 ### Added
